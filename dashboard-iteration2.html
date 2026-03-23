@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delivery Health Dashboard — Iteration 2 · + Work Item Types</title>
+<style>
+  :root {
+    --green: #22c55e; --green-bg: #f0fdf4; --green-border: #bbf7d0;
+    --yellow: #eab308; --yellow-bg: #fefce8; --yellow-border: #fef08a;
+    --red: #ef4444; --red-bg: #fef2f2; --red-border: #fecaca;
+    --blue: #3b82f6; --blue-light: #dbeafe;
+    --orange: #f97316; --orange-bg: #fff7ed; --orange-border: #fed7aa;
+    --purple: #7c3aed;
+    --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
+    --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280;
+    --gray-700: #374151; --gray-800: #1f2937; --gray-900: #111827;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--gray-50); color: var(--gray-800); }
+
+  /* Iteration Nav */
+  .iter-nav { background: #1e293b; padding: 9px 32px; display: flex; align-items: center; gap: 6px; }
+  .iter-nav .nav-label { color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 10px; }
+  .iter-nav a { color: #94a3b8; font-size: 12px; text-decoration: none; padding: 5px 14px; border-radius: 6px; border: 1px solid transparent; transition: all 0.15s; }
+  .iter-nav a:hover { color: white; background: #334155; border-color: #475569; }
+  .iter-nav .current { background: #7c3aed; color: white; font-size: 12px; padding: 5px 14px; border-radius: 6px; font-weight: 600; }
+  .iter-sep { color: #475569; font-size: 12px; }
+
+  /* Data Banner */
+  .data-banner { background: #fdf4ff; border-bottom: 2px solid #e879f9; padding: 9px 32px; font-size: 12px; color: #701a75; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .data-banner strong { color: #581c87; margin-right: 4px; }
+  .chip-avail { display: inline-flex; align-items: center; gap: 3px; background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; border-radius: 20px; padding: 2px 9px; font-size: 11px; font-weight: 600; }
+  .chip-new   { display: inline-flex; align-items: center; gap: 3px; background: #ede9fe; color: #6d28d9; border: 1px solid #c4b5fd; border-radius: 20px; padding: 2px 9px; font-size: 11px; font-weight: 700; }
+  .chip-miss  { display: inline-flex; align-items: center; gap: 3px; background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; border-radius: 20px; padding: 2px 9px; font-size: 11px; text-decoration: line-through; opacity: 0.7; }
+
+  /* Header */
+  .header { background: white; border-bottom: 1px solid var(--gray-200); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 20px; font-weight: 700; }
+  .header .subtitle { font-size: 13px; color: var(--gray-500); margin-top: 2px; }
+  .header-right { display: flex; gap: 12px; align-items: center; }
+  .badge { background: var(--blue-light); color: var(--blue); font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 12px; }
+  .filter-group { display: flex; gap: 8px; }
+  select { padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px; background: white; cursor: pointer; }
+
+  /* KPI Strip */
+  .kpi-strip { display: flex; gap: 16px; padding: 20px 32px; background: white; border-bottom: 1px solid var(--gray-200); flex-wrap: wrap; }
+  .kpi-card { flex: 1; min-width: 140px; padding: 16px 20px; border-radius: 10px; border: 1px solid var(--gray-200); background: var(--gray-50); }
+  .kpi-card.highlight { border-color: #c4b5fd; background: #faf5ff; }
+  .kpi-value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .kpi-sub { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); font-weight: 600; display: flex; align-items: center; }
+
+  /* Table */
+  .table-container { padding: 20px 32px; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: visible; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  thead th { background: var(--gray-50); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); font-weight: 600; padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--gray-200); }
+  tbody td { padding: 14px 16px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+  tbody tr { cursor: pointer; transition: background 0.15s; }
+  tbody tr:hover { background: var(--blue-light); }
+  .team-name { font-weight: 600; font-size: 14px; color: var(--blue); }
+  .team-bu { font-size: 11px; color: var(--gray-400); }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--gray-700); }
+  th.sortable::after { content: ' ⇅'; font-size: 10px; }
+
+  /* Sparkline */
+  .sparkline-container { display: flex; align-items: center; gap: 10px; }
+  canvas.sparkline { height: 32px; width: 120px; }
+  .trend-badge { font-size: 13px; font-weight: 700; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .trend-up   { background: var(--green-bg); color: var(--green); }
+  .trend-down { background: var(--red-bg);   color: var(--red);   }
+  .trend-flat { background: var(--yellow-bg); color: var(--yellow); }
+  .avg-label { font-size: 12px; color: var(--gray-500); }
+
+  /* Flow cells */
+  .flow-cell { display: flex; align-items: center; gap: 10px; }
+  .flow-ratio { font-size: 14px; font-weight: 700; padding: 4px 10px; border-radius: 6px; min-width: 50px; text-align: center; }
+  .flow-green  { background: var(--green-bg);  color: #15803d; border: 1px solid var(--green-border);  }
+  .flow-yellow { background: var(--yellow-bg); color: #a16207; border: 1px solid var(--yellow-border); }
+  .flow-red    { background: var(--red-bg);    color: #dc2626; border: 1px solid var(--red-border);    }
+  .flow-detail { font-size: 12px; color: var(--gray-500); line-height: 1.5; }
+
+  /* Type Mix bar */
+  .type-mix-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; width: 100%; margin: 6px 0 4px 0; }
+  .type-mix-us   { background: #3b82f6; }
+  .type-mix-ts   { background: #f97316; }
+  .type-mix-bug  { background: #ef4444; }
+  .type-mix-legend { display: flex; gap: 8px; font-size: 10px; color: var(--gray-500); }
+  .type-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 2px; }
+
+  /* Team Dashboard (overlay) */
+  .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
+  .overlay.active { display: flex; justify-content: center; align-items: flex-start; padding-top: 40px; }
+  .team-dashboard { background: white; border-radius: 14px; width: 90%; max-width: 1200px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .td-header { padding: 24px 32px; border-bottom: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center; }
+  .td-header h2 { font-size: 22px; margin-top: 6px; }
+  .td-header .close-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--gray-200); background: white; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+  .td-header .close-btn:hover { background: var(--gray-100); }
+  .td-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 24px 32px; }
+  .td-panel { border: 1px solid var(--gray-200); border-radius: 10px; padding: 20px; }
+  .td-panel h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); margin-bottom: 16px; font-weight: 600; }
+  .td-panel canvas { width: 100%; height: 220px; }
+  .back-link { color: var(--blue); cursor: pointer; font-size: 13px; font-weight: 500; }
+  .back-link:hover { text-decoration: underline; }
+  .nav-hint { text-align: center; padding: 10px; font-size: 12px; color: var(--gray-400); }
+
+  /* Tooltip */
+  .info-btn { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--gray-300); color: var(--gray-600); font-size: 9px; font-weight: 700; cursor: default; margin-left: 5px; vertical-align: middle; position: relative; }
+  .tooltip { display: none; position: fixed; background: #1e293b; color: white; font-size: 11px; font-weight: 400; line-height: 1.5; padding: 8px 12px; border-radius: 7px; white-space: pre-line; width: 240px; z-index: 9999; text-transform: none; letter-spacing: 0; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.25); }
+  .info-btn:hover .tooltip { display: block; }
+
+  @media (max-width: 1024px) {
+    .td-grid { grid-template-columns: 1fr; }
+    .kpi-strip { flex-wrap: wrap; }
+    .kpi-card { min-width: 140px; }
+    .header { flex-direction: column; gap: 12px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Iteration Navigation -->
+<div class="iter-nav">
+  <span class="nav-label">Mockup-Iteration:</span>
+  <a href="index.html">&#8962; Startseite</a>
+  <span class="iter-sep">|</span>
+  <a href="dashboard-iteration1.html">1 · Activated &amp; Closed Date</a>
+  <span class="iter-sep">›</span>
+  <span class="current">2 · + Work Item Types</span>
+  <span class="iter-sep">›</span>
+  <a href="dashboard-prototype.html">3 · Vollständige Daten</a>
+</div>
+
+<!-- Data Availability Banner -->
+<div class="data-banner">
+  <strong>Verfügbare Daten:</strong>
+  <span class="chip-avail">✓ Activated Date</span>
+  <span class="chip-avail">✓ Closed Date</span>
+  <span class="chip-new">★ Work Item Typ (User Story / Tech Story / Bug)</span>
+  <span class="chip-miss">Commit-Scope / Tags</span>
+  <span class="chip-miss">Story Points</span>
+</div>
+
+<!-- ==================== REPORTING DASHBOARD ==================== -->
+<div id="reportingView">
+  <div class="header">
+    <div>
+      <h1>Delivery Health Dashboard</h1>
+      <div class="subtitle">OKR 3.2 — Flow Metrics + Work Item Type Distribution</div>
+    </div>
+    <div class="header-right">
+      <div class="filter-group">
+        <select id="buFilter" onchange="filterTable()">
+          <option value="all">Alle Business Units</option>
+          <option value="Platform">Platform</option>
+          <option value="Payments">Payments</option>
+          <option value="Marketplace">Marketplace</option>
+          <option value="Data">Data &amp; Analytics</option>
+        </select>
+        <select id="quarterFilter">
+          <option value="Q1-2026">Q1 2026</option>
+          <option value="Q2-2026" selected>Q2 2026</option>
+        </select>
+      </div>
+      <span class="badge">12 / 15 Teams onboarded</span>
+    </div>
+  </div>
+
+  <div class="kpi-strip" id="kpiStrip"><!-- Filled by JS --></div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th class="sortable" onclick="sortTable('name')">Team</th>
+          <th class="sortable" onclick="sortTable('avgTp')">Throughput (Items / Woche)
+            <span class="info-btn">i<span class="tooltip">Wöchentlich abgeschlossene Work Items.\n\nSparkline = 12-Wochen-Verlauf.\nPfeil = letzte 4W vs. vorige 4W.</span></span>
+          </th>
+          <th class="sortable" onclick="sortTable('p50')">Cycle Time (P50)
+            <span class="info-btn">i<span class="tooltip">Median-Durchlaufzeit in Tagen.\nBerechnet aus: Closed Date − Activated Date.\n\nTrend = Ø letzte 2W vs. 12W-Baseline.</span></span>
+          </th>
+          <th class="sortable" onclick="sortTable('wipCount')">WIP &amp; Alter
+            <span class="info-btn">i<span class="tooltip">Laufende Work Items = Activated, noch nicht Closed.\n\nAlter = Heute − Activated Date.</span></span>
+          </th>
+          <th class="sortable" onclick="sortTable('valuePct')">Work Item Mix
+            <span class="info-btn">i<span class="tooltip">Verteilung der abgeschlossenen Items nach Typ.\n\nBlau = User Story\nOrange = Tech Story\nRot = Bug\n\nCapacity on Value Work = Anteil User Story + Tech Story\n(nicht Bug-Fixes).</span></span>
+          </th>
+        </tr>
+      </thead>
+      <tbody id="teamTableBody"></tbody>
+    </table>
+    <div class="nav-hint">Klicke auf ein Team für das detaillierte Team-Dashboard</div>
+  </div>
+</div>
+
+<!-- ==================== TEAM DASHBOARD OVERLAY ==================== -->
+<div id="teamOverlay" class="overlay" onclick="if(event.target===this)closeTeamDashboard()">
+  <div class="team-dashboard">
+    <div class="td-header">
+      <div>
+        <span class="back-link" onclick="closeTeamDashboard()">&#8592; Zurück zum Reporting Dashboard</span>
+        <h2 id="tdTeamName">Team Alpha</h2>
+        <div class="subtitle" id="tdTeamBU">Platform · Jira Cloud</div>
+      </div>
+      <button class="close-btn" onclick="closeTeamDashboard()" title="Schließen (Esc)">&#10005;</button>
+    </div>
+
+    <div class="kpi-strip" style="border-bottom:none; padding-bottom:0;">
+      <div class="kpi-card">
+        <div class="kpi-label">Avg. Throughput</div>
+        <div class="kpi-value" id="tdAvgThroughput">—</div>
+        <div class="kpi-sub">Items / Woche (12W)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">P50 Cycle Time</div>
+        <div class="kpi-value" id="tdP50">—</div>
+        <div class="kpi-sub">Median Durchlaufzeit</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">P85 Cycle Time</div>
+        <div class="kpi-value" id="tdP85">—</div>
+        <div class="kpi-sub">85. Perzentil</div>
+      </div>
+      <div class="kpi-card highlight">
+        <div class="kpi-label" style="color:#7c3aed">Value Work</div>
+        <div class="kpi-value" id="tdValueWork" style="color:#7c3aed">—</div>
+        <div class="kpi-sub">Anteil nicht-Bug Throughput</div>
+      </div>
+    </div>
+
+    <div class="td-grid">
+      <div class="td-panel">
+        <h3>WIP Aging Chart</h3>
+        <canvas id="chartWipAging"></canvas>
+      </div>
+      <div class="td-panel">
+        <h3>Cycle Time Scatterplot — nach Typ</h3>
+        <canvas id="chartScatter"></canvas>
+      </div>
+      <div class="td-panel">
+        <h3>Throughput nach Typ (12 Wochen)</h3>
+        <canvas id="chartRunChart"></canvas>
+      </div>
+      <div class="td-panel">
+        <h3>Quality — Net Bug Flow (12 Wochen)</h3>
+        <canvas id="chartBugQuality"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== SEEDED RANDOM ====================
+function seededRandom(seed) {
+  let s = seed;
+  return function() {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+// ==================== TYPE PROFILE per Team ====================
+// us = User Story ratio, ts = Tech Story ratio, bug = Bug ratio
+const typeProfiles = {
+  "Team Alpha":   { us: 0.60, ts: 0.22, bug: 0.18 },
+  "Team Beta":    { us: 0.58, ts: 0.25, bug: 0.17 },
+  "Team Gamma":   { us: 0.52, ts: 0.26, bug: 0.22 },
+  "Team Delta":   { us: 0.32, ts: 0.22, bug: 0.46 },
+  "Team Epsilon": { us: 0.65, ts: 0.20, bug: 0.15 },
+  "Team Zeta":    { us: 0.50, ts: 0.28, bug: 0.22 },
+  "Team Eta":     { us: 0.48, ts: 0.30, bug: 0.22 },
+  "Team Theta":   { us: 0.68, ts: 0.22, bug: 0.10 },
+  "Team Iota":    { us: 0.52, ts: 0.24, bug: 0.24 },
+  "Team Kappa":   { us: 0.35, ts: 0.20, bug: 0.45 },
+  "Team Lambda":  { us: 0.62, ts: 0.22, bug: 0.16 },
+  "Team Mu":      { us: 0.48, ts: 0.26, bug: 0.26 },
+};
+
+// Bug debt per team: positive = bugs growing, 0 = balanced
+const bugDebt = {
+  "Team Alpha":0, "Team Beta":0, "Team Gamma":1, "Team Delta":2,
+  "Team Epsilon":0, "Team Zeta":1, "Team Eta":0, "Team Theta":-1,
+  "Team Iota":0, "Team Kappa":3, "Team Lambda":0, "Team Mu":1
+};
+
+function computeTypeWeeks(tp, profile, nameHash) {
+  const rng = seededRandom(nameHash + 7);
+  return tp.map(total => {
+    const jitter = (rng() - 0.5) * 0.12;
+    const bugRatio = Math.max(0, Math.min(profile.bug + jitter, 0.7));
+    let bug = Math.max(0, Math.round(total * bugRatio));
+    let rem = total - bug;
+    const tsRatio = profile.ts / (profile.us + profile.ts);
+    let ts  = Math.max(0, Math.round(rem * (tsRatio + (rng() - 0.5) * 0.1)));
+    let us  = Math.max(0, rem - ts);
+    // Fix rounding
+    const diff = total - us - ts - bug;
+    us += diff;
+    if (us < 0) { ts += us; us = 0; }
+    return { us: Math.max(0,us), ts: Math.max(0,ts), bug: Math.max(0,bug) };
+  });
+}
+
+function computeBugsCreated(typeWeeks, debtPerWeek, nameHash) {
+  const rng = seededRandom(nameHash + 99);
+  return typeWeeks.map(w => {
+    const base = w.bug + debtPerWeek;
+    return Math.max(0, base + Math.round((rng() - 0.4) * 2));
+  });
+}
+
+// ==================== DATA ====================
+const teamsBase = [
+  { name:"Team Alpha",   bu:"Platform",    tool:"Jira Cloud",   tp:[6,8,7,5,9,7,8,6,7,9,8,7],           arrivalRate:[7,9,6,5,10,8,7,7,8,8,9,7],  p50:4.5,  p50recent:3.8,  trend:"up",   wipCount:6,  wipAvgAge:3.2 },
+  { name:"Team Beta",    bu:"Platform",    tool:"Jira Cloud",   tp:[4,5,3,6,5,4,5,6,5,4,6,5],           arrivalRate:[4,5,4,5,5,4,5,6,5,5,5,5],  p50:3.2,  p50recent:3.0,  trend:"flat", wipCount:4,  wipAvgAge:2.8 },
+  { name:"Team Gamma",   bu:"Payments",    tool:"Azure DevOps", tp:[10,12,11,9,13,11,10,12,14,11,13,12], arrivalRate:[12,13,12,11,14,12,11,14,15,13,14,13], p50:6.0, p50recent:6.6, trend:"up",  wipCount:11, wipAvgAge:5.2 },
+  { name:"Team Delta",   bu:"Payments",    tool:"Jira Server",  tp:[3,2,4,3,5,3,2,4,3,2,4,3],           arrivalRate:[5,4,6,5,7,5,4,6,5,5,7,6],  p50:12.0, p50recent:14.5, trend:"down", wipCount:18, wipAvgAge:11.3 },
+  { name:"Team Epsilon", bu:"Marketplace", tool:"Jira Cloud",   tp:[8,7,9,8,7,8,9,7,8,9,7,8],           arrivalRate:[8,7,9,8,7,9,9,7,8,9,8,8],  p50:3.8,  p50recent:3.7,  trend:"flat", wipCount:5,  wipAvgAge:3.1 },
+  { name:"Team Zeta",    bu:"Marketplace", tool:"Jira Cloud",   tp:[5,6,4,7,5,6,7,5,6,4,7,6],           arrivalRate:[6,7,5,8,6,6,8,5,7,5,8,6],  p50:7.2,  p50recent:6.5,  trend:"up",   wipCount:9,  wipAvgAge:5.0 },
+  { name:"Team Eta",     bu:"Data",        tool:"Azure DevOps", tp:[2,3,2,3,2,3,4,3,2,3,4,3],           arrivalRate:[3,3,3,4,3,3,4,3,3,4,4,3],  p50:9.5,  p50recent:10.2, trend:"flat", wipCount:8,  wipAvgAge:8.1 },
+  { name:"Team Theta",   bu:"Platform",    tool:"Jira Cloud",   tp:[9,10,8,11,9,10,11,9,10,12,10,11],   arrivalRate:[8,9,8,10,9,9,11,9,9,11,10,10], p50:2.8, p50recent:2.4, trend:"up",  wipCount:4,  wipAvgAge:2.0 },
+  { name:"Team Iota",    bu:"Payments",    tool:"Jira Server",  tp:[6,5,7,6,5,7,6,5,6,7,5,6],           arrivalRate:[6,6,7,7,5,7,6,6,6,7,5,7],  p50:5.5,  p50recent:5.5,  trend:"flat", wipCount:7,  wipAvgAge:4.8 },
+  { name:"Team Kappa",   bu:"Marketplace", tool:"Jira Cloud",   tp:[4,3,5,4,6,4,5,3,4,5,4,5],           arrivalRate:[6,5,8,6,9,7,7,5,7,8,7,8],  p50:10.0, p50recent:12.5, trend:"down", wipCount:16, wipAvgAge:9.7 },
+  { name:"Team Lambda",  bu:"Data",        tool:"Azure DevOps", tp:[7,8,6,7,8,9,7,8,7,8,9,8],           arrivalRate:[7,8,6,7,8,9,7,8,7,8,9,8],  p50:4.0,  p50recent:3.5,  trend:"up",   wipCount:6,  wipAvgAge:3.3 },
+  { name:"Team Mu",      bu:"Platform",    tool:"Jira Cloud",   tp:[5,4,6,5,4,5,6,4,5,6,5,6],           arrivalRate:[6,5,7,6,5,6,7,5,6,7,6,6],  p50:8.0,  p50recent:8.8,  trend:"flat", wipCount:11, wipAvgAge:6.5 },
+];
+
+// Add type data
+const teams = teamsBase.map(t => {
+  const nameHash  = t.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const profile   = typeProfiles[t.name] || { us:0.5, ts:0.25, bug:0.25 };
+  const debt      = bugDebt[t.name] || 0;
+  const typeWeeks = computeTypeWeeks(t.tp, profile, nameHash);
+  const bugsResolved = typeWeeks.map(w => w.bug);
+  const bugsCreated  = computeBugsCreated(typeWeeks, debt, nameHash);
+  return { ...t, typeWeeks, bugsResolved, bugsCreated };
+});
+
+// Precompute derived
+teams.forEach(t => {
+  t.avgTp     = t.tp.reduce((a,b) => a+b, 0) / t.tp.length;
+  t.totalDelivered = t.tp.reduce((a,b) => a+b, 0);
+  t.avgArrival = t.arrivalRate.reduce((a,b) => a+b, 0) / t.arrivalRate.length;
+  t.p85       = +(t.p50 * 1.9).toFixed(1);
+  const last4tp  = t.tp.slice(-4).reduce((a,b) => a+b,0) / 4;
+  const last4arr = t.arrivalRate.slice(-4).reduce((a,b) => a+b,0) / 4;
+  t.flowRatio = +(last4arr / last4tp).toFixed(2);
+
+  // Type totals
+  const totalUs  = t.typeWeeks.reduce((s,w) => s+w.us,  0);
+  const totalTs  = t.typeWeeks.reduce((s,w) => s+w.ts,  0);
+  const totalBug = t.typeWeeks.reduce((s,w) => s+w.bug, 0);
+  const total    = totalUs + totalTs + totalBug;
+  t.usPct       = Math.round(totalUs  / total * 100);
+  t.tsPct       = Math.round(totalTs  / total * 100);
+  t.bugPct      = 100 - t.usPct - t.tsPct;
+  t.valuePct    = t.usPct + t.tsPct;   // non-bug throughput
+  t.totalUs     = totalUs;
+  t.totalTs     = totalTs;
+  t.totalBug    = totalBug;
+});
+
+// ==================== HELPERS ====================
+function getTrendArrow(trend) {
+  if (trend === "up")   return '<span class="trend-badge trend-up">&#8593;</span>';
+  if (trend === "down") return '<span class="trend-badge trend-down">&#8595;</span>';
+  return '<span class="trend-badge trend-flat">&#8594;</span>';
+}
+
+function getCycleTimeCellHtml(t) {
+  const recent = t.p50recent || t.p50;
+  const delta  = +(recent - t.p50).toFixed(1);
+  const sign   = delta > 0 ? '+' : '';
+  const bg     = delta < -0.5 ? 'var(--green-bg)'   : delta > 0.5 ? 'var(--red-bg)'    : 'var(--yellow-bg)';
+  const fg     = delta < -0.5 ? 'var(--green)'       : delta > 0.5 ? 'var(--red)'       : 'var(--yellow)';
+  const arrow  = delta < -0.5 ? '&#8595;'            : delta > 0.5 ? '&#8593;'          : '&#8594;';
+  return `<div class="flow-cell">
+    <div style="font-size:20px;font-weight:700;color:var(--gray-700);min-width:44px">${t.p50}d</div>
+    <div>
+      <div style="font-size:11px;color:var(--gray-400);margin-bottom:2px">P50 Baseline</div>
+      <span style="display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:${bg};color:${fg}">${arrow} ${sign}${delta}d</span>
+      <div style="font-size:10px;color:var(--gray-400);margin-top:2px">2W vs. 12W</div>
+    </div>
+  </div>`;
+}
+
+function getWipStatusHtml(t) {
+  const ageRatio = t.wipAvgAge / t.p50;
+  const ageColor = ageRatio < 0.9 ? 'var(--green)' : ageRatio < 1.3 ? 'var(--yellow)' : 'var(--red)';
+  const ageLabel = ageRatio < 0.9 ? '✓ Frisch' : ageRatio < 1.3 ? '~ Normal' : '⚠ Aged';
+  return `<div>
+    <div style="display:flex;align-items:baseline;gap:6px">
+      <span style="font-size:22px;font-weight:700;color:var(--gray-700)">${t.wipCount}</span>
+      <span style="font-size:12px;color:var(--gray-400)">Items in Progress</span>
+    </div>
+    <div style="margin-top:4px">
+      <span style="font-size:12px;font-weight:600;color:${ageColor}">${ageLabel}</span>
+      <span style="font-size:11px;color:var(--gray-400);margin-left:5px">Ø ${t.wipAvgAge}d</span>
+    </div>
+    <div style="font-size:10px;color:var(--gray-400);margin-top:2px">P50 Baseline: ${t.p50}d</div>
+  </div>`;
+}
+
+function getWorkMixHtml(t) {
+  const vColor = t.valuePct >= 80 ? 'var(--green)' : t.valuePct >= 65 ? 'var(--yellow)' : 'var(--red)';
+  return `<div style="min-width:180px">
+    <div class="type-mix-bar">
+      <div class="type-mix-us"  style="width:${t.usPct}%"></div>
+      <div class="type-mix-ts"  style="width:${t.tsPct}%"></div>
+      <div class="type-mix-bug" style="width:${t.bugPct}%"></div>
+    </div>
+    <div class="type-mix-legend">
+      <span><span class="type-dot" style="background:#3b82f6"></span>US ${t.usPct}%</span>
+      <span><span class="type-dot" style="background:#f97316"></span>TS ${t.tsPct}%</span>
+      <span><span class="type-dot" style="background:#ef4444"></span>Bug ${t.bugPct}%</span>
+    </div>
+    <div style="margin-top:6px">
+      <span style="font-size:13px;font-weight:700;color:${vColor}">Value Work: ${t.valuePct}%</span>
+    </div>
+    <div style="font-size:10px;color:var(--gray-400);margin-top:1px">${t.totalBug} Bug-Fixes von ${t.totalDelivered}</div>
+  </div>`;
+}
+
+// ==================== KPI STRIP ====================
+function renderKpis(filtered) {
+  const strip = document.getElementById('kpiStrip');
+  if (!filtered.length) { strip.innerHTML = ''; return; }
+
+  // 1. Throughput Trend
+  const tpBaseline  = filtered.reduce((s,t) => s + t.tp.reduce((a,b)=>a+b,0)/t.tp.length, 0) / filtered.length;
+  const tpRecent    = filtered.reduce((s,t) => s + t.tp.slice(-2).reduce((a,b)=>a+b,0)/2, 0) / filtered.length;
+  const tpDeltaPct  = Math.round((tpRecent - tpBaseline) / tpBaseline * 100);
+  const avgTpAll    = (filtered.reduce((s,t) => s + t.avgTp, 0) / filtered.length).toFixed(1);
+  const tpColor     = tpDeltaPct >= 0 ? 'var(--green)' : 'var(--red)';
+  const tpSign      = tpDeltaPct > 0 ? '+' : '';
+  const tpLabel     = tpDeltaPct >= 0 ? 'steigend' : 'fallend';
+
+  // 2. Cycle Time P50 Trend
+  const avgP50      = (filtered.reduce((s,t) => s + t.p50, 0) / filtered.length).toFixed(1);
+  const avgP50rec   = filtered.reduce((s,t) => s + (t.p50recent || t.p50), 0) / filtered.length;
+  const ctDelta     = +(avgP50rec - parseFloat(avgP50)).toFixed(1);
+  const ctColor     = ctDelta <= 0 ? 'var(--green)' : 'var(--red)';
+  const ctSign      = ctDelta > 0 ? '+' : '';
+  const ctLabel     = ctDelta <= 0 ? 'schneller' : 'langsamer';
+
+  // 3. Capacity on Value Work (NEW)
+  const totalAll    = filtered.reduce((s,t) => s + t.totalDelivered, 0);
+  const totalBugAll = filtered.reduce((s,t) => s + t.totalBug, 0);
+  const valuePct    = Math.round((totalAll - totalBugAll) / totalAll * 100);
+  const bugPct      = 100 - valuePct;
+  const vColor      = valuePct >= 75 ? 'var(--green)' : valuePct >= 60 ? 'var(--yellow)' : 'var(--red)';
+
+  // 4. Total WIP
+  const totalWip    = filtered.reduce((s,t) => s + t.wipCount, 0);
+  const avgWipAge   = (filtered.reduce((s,t) => s + t.wipAvgAge, 0) / filtered.length).toFixed(1);
+  const avgP50All   = filtered.reduce((s,t) => s + t.p50, 0) / filtered.length;
+  const wipRatio    = parseFloat(avgWipAge) / avgP50All;
+  const wipColor    = wipRatio < 0.9 ? 'var(--green)' : wipRatio < 1.3 ? 'var(--yellow)' : 'var(--red)';
+
+  // 5. Flow Balance
+  const avgFlowRatio = (filtered.reduce((s,t) => s + t.flowRatio, 0) / filtered.length).toFixed(2);
+  const flowColor    = avgFlowRatio <= 1.1 ? 'var(--green)' : avgFlowRatio <= 1.3 ? 'var(--yellow)' : 'var(--red)';
+  const flowLabel    = avgFlowRatio <= 1.1 ? 'Ausgeglichen' : avgFlowRatio <= 1.3 ? 'Steigt' : 'WIP wächst';
+  const teamsOvldd   = filtered.filter(t => t.flowRatio > 1.3).length;
+
+  strip.innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">Throughput Trend <span class="info-btn">i<span class="tooltip">Richtung des Portfolio-Throughputs.\nGrün = steigend, Rot = fallend.</span></span></div>
+      <div class="kpi-value" style="color:${tpColor}">${tpSign}${tpDeltaPct}%</div>
+      <div class="kpi-sub">Ø ${avgTpAll} Items/W · ${tpLabel}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Cycle Time P50 <span class="info-btn">i<span class="tooltip">Median-Durchlaufzeit (Closed − Activated).\nTrend: letzte 2W vs. 12W-Baseline.</span></span></div>
+      <div class="kpi-value" style="color:${ctColor}">${ctSign}${ctDelta}d</div>
+      <div class="kpi-sub">Ø Baseline ${avgP50}d · ${ctLabel}</div>
+    </div>
+    <div class="kpi-card highlight">
+      <div class="kpi-label" style="color:#7c3aed">Capacity on Value Work <span class="info-btn">i<span class="tooltip">Anteil des Throughputs der KEINE Bug-Fixes sind.\n\n(Gesamt-Items − Bug-Fixes) ÷ Gesamt-Items.\nGrün ≥ 75%, Gelb ≥ 60%, Rot &lt; 60%.\n\nNeu verfügbar durch Work Item Typ-Daten.</span></span></div>
+      <div class="kpi-value" style="color:${vColor}">${valuePct}%</div>
+      <div class="kpi-sub">${bugPct}% Bug-Fixes · ${totalBugAll} von ${totalAll} Items</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Gesamt WIP <span class="info-btn">i<span class="tooltip">Summe aller aktiven Work Items.\nItems mit Activated Date aber ohne Closed Date.</span></span></div>
+      <div class="kpi-value" style="color:${wipColor}">${totalWip}</div>
+      <div class="kpi-sub">Ø Alter ${avgWipAge}d · ${filtered.length} Teams</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Flow Balance <span class="info-btn">i<span class="tooltip">Ankunftsrate ÷ Abschlussrate (letzte 4W).\n1.0 = ausgeglichen, &gt;1.3 = WIP wächst.</span></span></div>
+      <div class="kpi-value" style="color:${flowColor}">${avgFlowRatio}×</div>
+      <div class="kpi-sub">${flowLabel} · ${teamsOvldd} Teams kritisch</div>
+    </div>
+  `;
+}
+
+// ==================== TABLE ====================
+let currentSort = { key: null, asc: true };
+
+function renderTable(filter) {
+  const tbody   = document.getElementById('teamTableBody');
+  let filtered  = filter === 'all' ? [...teams] : teams.filter(t => t.bu === filter);
+
+  if (currentSort.key) {
+    filtered.sort((a, b) => {
+      let va = a[currentSort.key], vb = b[currentSort.key];
+      if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+      if (va < vb) return currentSort.asc ? -1 : 1;
+      if (va > vb) return currentSort.asc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  renderKpis(filtered);
+  tbody.innerHTML = '';
+
+  filtered.forEach((t, idx) => {
+    const tr = document.createElement('tr');
+    tr.onclick = () => openTeamDashboard(t);
+    tr.setAttribute('data-bu', t.bu);
+    tr.innerHTML = `
+      <td>
+        <div class="team-name">${t.name}</div>
+        <div class="team-bu">${t.bu} &middot; ${t.tool}</div>
+      </td>
+      <td>
+        <div class="sparkline-container">
+          <canvas class="sparkline" id="spark-${idx}" width="120" height="32"></canvas>
+          ${getTrendArrow(t.trend)}
+          <span class="avg-label">&Oslash; ${t.avgTp.toFixed(1)}/W</span>
+        </div>
+      </td>
+      <td>${getCycleTimeCellHtml(t)}</td>
+      <td>${getWipStatusHtml(t)}</td>
+      <td>${getWorkMixHtml(t)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  requestAnimationFrame(() => {
+    filtered.forEach((t, idx) => drawSparkline(`spark-${idx}`, t.tp));
+  });
+}
+
+function sortTable(key) {
+  if (currentSort.key === key) currentSort.asc = !currentSort.asc;
+  else { currentSort.key = key; currentSort.asc = true; }
+  filterTable();
+}
+
+function drawSparkline(canvasId, data) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const max   = Math.max(...data) + 1;
+  const min   = Math.max(0, Math.min(...data) - 1);
+  const stepX = w / (data.length - 1);
+
+  ctx.beginPath(); ctx.moveTo(0, h);
+  data.forEach((v, i) => { const y = h - ((v-min)/(max-min))*(h-4)-2; ctx.lineTo(i*stepX, y); });
+  ctx.lineTo(w, h); ctx.closePath();
+  ctx.fillStyle = 'rgba(59,130,246,0.08)'; ctx.fill();
+
+  ctx.beginPath();
+  data.forEach((v, i) => { const y = h - ((v-min)/(max-min))*(h-4)-2; if(i===0) ctx.moveTo(0,y); else ctx.lineTo(i*stepX,y); });
+  ctx.strokeStyle = 'rgba(59,130,246,0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  const lastY = h - ((data[data.length-1]-min)/(max-min))*(h-4)-2;
+  ctx.beginPath(); ctx.arc(w, lastY, 3, 0, Math.PI*2);
+  ctx.fillStyle = '#3b82f6'; ctx.fill();
+}
+
+function filterTable() {
+  renderTable(document.getElementById('buFilter').value);
+}
+
+// ==================== TEAM DASHBOARD ====================
+function openTeamDashboard(team) {
+  document.getElementById('tdTeamName').textContent   = team.name;
+  document.getElementById('tdTeamBU').textContent     = `${team.bu} · ${team.tool}`;
+  document.getElementById('tdAvgThroughput').textContent = team.avgTp.toFixed(1);
+  document.getElementById('tdP50').textContent        = team.p50 + 'd';
+  document.getElementById('tdP85').textContent        = team.p85 + 'd';
+  document.getElementById('tdValueWork').textContent  = team.valuePct + '%';
+
+  document.getElementById('teamOverlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+
+  const nameHash = team.name.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+
+  requestAnimationFrame(() => {
+    drawRunChartStacked(team);
+    drawBugQuality(team);
+    drawScatterTyped(team, nameHash);
+    const wipItems = generateWipItems(team, nameHash);
+    drawWipAging(team, wipItems);
+  });
+}
+
+function closeTeamDashboard() {
+  document.getElementById('teamOverlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// ==================== STACKED RUN CHART (by type) ====================
+function drawRunChartStacked(team) {
+  const canvas = document.getElementById('chartRunChart');
+  const ctx    = canvas.getContext('2d');
+  const dpr    = window.devicePixelRatio || 1;
+  const rect   = canvas.getBoundingClientRect();
+  canvas.width  = rect.width  * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const w = rect.width, h = rect.height;
+  const tw   = team.typeWeeks;
+  const data = team.tp;
+  const max  = Math.max(...data) + 2;
+  const barW = (w - 60) / data.length;
+  const avg  = team.avgTp;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, 0, w, h);
+
+  // Grid
+  ctx.fillStyle = '#9ca3af'; ctx.font = '10px Inter, sans-serif'; ctx.textAlign = 'right';
+  const step = Math.ceil(max / 5);
+  for (let i = 0; i <= max; i += step) {
+    const y = h - 30 - (i / max) * (h - 50);
+    ctx.fillText(i, 30, y + 3);
+    ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(35, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  ctx.textAlign = 'left';
+
+  // Stacked bars: Bug (bottom red) → TS (middle orange) → US (top blue)
+  data.forEach((total, i) => {
+    const w_bug = tw[i] ? tw[i].bug : 0;
+    const w_ts  = tw[i] ? tw[i].ts  : 0;
+    const w_us  = tw[i] ? tw[i].us  : 0;
+    const x     = 40 + i * barW + 2;
+    const bw    = barW - 4;
+    let yBase   = h - 30;
+
+    const drawSeg = (val, color) => {
+      if (val <= 0) return;
+      const segH = (val / max) * (h - 50);
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.roundRect(x, yBase - segH, bw, segH, i === data.length-1 ? [3,3,0,0] : 0); ctx.fill();
+      yBase -= segH;
+    };
+
+    drawSeg(w_bug, 'rgba(239,68,68,0.65)');
+    drawSeg(w_ts,  'rgba(249,115,22,0.65)');
+    drawSeg(w_us,  'rgba(59,130,246,0.7)');
+
+    ctx.fillStyle = '#9ca3af'; ctx.font = '9px Inter, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('W' + (i + 1), 40 + i * barW + barW / 2, h - 16);
+    ctx.textAlign = 'left';
+  });
+
+  // Avg line
+  const avgY = h - 30 - (avg / max) * (h - 50);
+  ctx.setLineDash([4, 3]); ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(40, avgY); ctx.lineTo(w - 10, avgY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ef4444'; ctx.font = 'bold 10px Inter, sans-serif';
+  ctx.fillText('\u00D8 ' + avg.toFixed(1), w - 45, avgY - 5);
+
+  // Legend
+  ctx.fillStyle = '#3b82f6'; ctx.font = 'bold 10px Inter, sans-serif';
+  ctx.fillText('\u25A0 User Story', 40, h - 3);
+  ctx.fillStyle = '#f97316';
+  ctx.fillText('\u25A0 Tech Story', 120, h - 3);
+  ctx.fillStyle = '#ef4444';
+  ctx.fillText('\u25A0 Bug', 205, h - 3);
+}
+
+// ==================== CYCLE TIME SCATTER (colored by type) ====================
+function drawScatterTyped(team, seed) {
+  const canvas = document.getElementById('chartScatter');
+  const ctx    = canvas.getContext('2d');
+  const dpr    = window.devicePixelRatio || 1;
+  const rect   = canvas.getBoundingClientRect();
+  canvas.width  = rect.width  * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const w = rect.width, h = rect.height;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, 0, w, h);
+
+  const p50   = team.p50;
+  const p85   = team.p85;
+  const p95   = +(p85 * 1.3).toFixed(1);
+  const maxCT = Math.ceil(p95 * 1.3);
+  const profile = typeProfiles[team.name] || { us:0.5, ts:0.25, bug:0.25 };
+
+  const rng   = seededRandom(seed);
+  // Bugs tend to be ~0.6× P50, Tech Stories ~1.0× P50, User Stories ~1.1× P50
+  const typeConfig = [
+    { ratio: 0.6,  color: 'rgba(239,68,68,0.65)',  label: 'Bug',        weight: profile.bug },
+    { ratio: 1.0,  color: 'rgba(249,115,22,0.65)', label: 'Tech Story', weight: profile.ts  },
+    { ratio: 1.15, color: 'rgba(59,130,246,0.65)', label: 'User Story', weight: profile.us  },
+  ];
+
+  const items = [];
+  for (let i = 0; i < 60; i++) {
+    const day  = Math.floor(rng() * 90);
+    const rand = rng();
+    let type   = typeConfig[2]; // default US
+    const r    = rng();
+    if (r < profile.bug) type = typeConfig[0];
+    else if (r < profile.bug + profile.ts) type = typeConfig[1];
+    const ct = Math.max(0.5, p50 * type.ratio * Math.exp((rng() - 0.5) * 1.1));
+    items.push({ day, ct, color: type.color });
+  }
+
+  const drawPLine = (val, label, color) => {
+    const y = h - 30 - (val / maxCT) * (h - 50);
+    if (y < 10) return;
+    ctx.setLineDash([5, 3]); ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(w - 10, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color; ctx.font = 'bold 10px Inter, sans-serif';
+    ctx.fillText(label + ' (' + val.toFixed(1) + 'd)', w - 100, y - 4);
+  };
+
+  drawPLine(p50, 'P50', '#22c55e');
+  drawPLine(p85, 'P85', '#eab308');
+  drawPLine(p95, 'P95', '#ef4444');
+
+  items.forEach(item => {
+    const x = 40 + (item.day / 90) * (w - 60);
+    const y = h - 30 - (Math.min(item.ct, maxCT) / maxCT) * (h - 50);
+    ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = item.color; ctx.fill();
+  });
+
+  ctx.fillStyle = '#9ca3af'; ctx.font = '10px Inter, sans-serif';
+  ctx.fillText('Cycle Time (Tage)', 5, 12);
+  ctx.fillText('90d ago', 40, h - 16);
+  ctx.textAlign = 'right'; ctx.fillText('heute', w - 10, h - 16); ctx.textAlign = 'left';
+
+  // Mini legend
+  const types = [['#3b82f6','US'],['#f97316','TS'],['#ef4444','Bug']];
+  let lx = 42;
+  types.forEach(([c, label]) => {
+    ctx.beginPath(); ctx.arc(lx, 12, 4, 0, Math.PI*2); ctx.fillStyle = c; ctx.fill();
+    ctx.fillStyle = '#6b7280'; ctx.font = '10px Inter, sans-serif'; ctx.fillText(label, lx + 7, 16);
+    lx += 38;
+  });
+}
+
+// ==================== BUG QUALITY (Net Bug Flow) ====================
+function drawBugQuality(team) {
+  const canvas = document.getElementById('chartBugQuality');
+  const ctx    = canvas.getContext('2d');
+  const dpr    = window.devicePixelRatio || 1;
+  const rect   = canvas.getBoundingClientRect();
+  canvas.width  = rect.width  * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const w = rect.width, h = rect.height;
+
+  const created  = team.bugsCreated;
+  const resolved = team.bugsResolved;
+  const weeks    = created.length;
+
+  const cumulative = [];
+  let cum = 0;
+  for (let i = 0; i < weeks; i++) { cum += created[i] - resolved[i]; cumulative.push(cum); }
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, 0, w, h);
+
+  const barAreaTop = 25;
+  const barAreaH   = h - 60;
+  const barW       = (w - 70) / weeks;
+  const maxBug     = Math.max(Math.max(...created), Math.max(...resolved), 1);
+  const midY       = barAreaTop + barAreaH / 2;
+
+  ctx.strokeStyle = '#d1d5db'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(50, midY); ctx.lineTo(w - 10, midY); ctx.stroke();
+
+  ctx.fillStyle = '#9ca3af'; ctx.font = '9px Inter, sans-serif'; ctx.textAlign = 'right';
+  const yStep = Math.ceil(maxBug / 3);
+  for (let i = yStep; i <= maxBug; i += yStep) {
+    const yUp = midY - (i / maxBug) * (barAreaH / 2 - 10);
+    const yDn = midY + (i / maxBug) * (barAreaH / 2 - 10);
+    ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(50, yUp); ctx.lineTo(w - 10, yUp); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(50, yDn); ctx.lineTo(w - 10, yDn); ctx.stroke();
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText(i, 45, yUp + 3); ctx.fillText(i, 45, yDn + 3);
+  }
+  ctx.textAlign = 'left';
+
+  created.forEach((c, i) => {
+    const x   = 52 + i * barW;
+    const bw  = barW * 0.38;
+    const cH  = (c / maxBug) * (barAreaH / 2 - 10);
+    const rH  = (resolved[i] / maxBug) * (barAreaH / 2 - 10);
+
+    ctx.fillStyle = 'rgba(239,68,68,0.5)';
+    ctx.beginPath(); ctx.roundRect(x + 2, midY - cH, bw, cH, [3, 3, 0, 0]); ctx.fill();
+    ctx.fillStyle = 'rgba(34,197,94,0.5)';
+    ctx.beginPath(); ctx.roundRect(x + 2 + bw + 1, midY, bw, rH, [0, 0, 3, 3]); ctx.fill();
+
+    ctx.fillStyle = '#9ca3af'; ctx.font = '9px Inter, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('W' + (i + 1), x + barW / 2, h - 10);
+    ctx.textAlign = 'left';
+  });
+
+  const maxCum = Math.max(Math.abs(Math.min(...cumulative)), Math.abs(Math.max(...cumulative)), 1);
+  ctx.beginPath();
+  cumulative.forEach((v, i) => {
+    const x = 52 + i * barW + barW / 2;
+    const y = midY - (v / maxCum) * (barAreaH / 2 - 15);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 2.5; ctx.stroke();
+
+  cumulative.forEach((v, i) => {
+    const x = 52 + i * barW + barW / 2;
+    const y = midY - (v / maxCum) * (barAreaH / 2 - 15);
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = v > 0 ? '#ef4444' : v < 0 ? '#22c55e' : '#7c3aed';
+    ctx.fill(); ctx.strokeStyle = 'white'; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+
+  const lastCum = cumulative[cumulative.length - 1];
+  const lastX   = 52 + (weeks - 1) * barW + barW / 2;
+  const lastY   = midY - (lastCum / maxCum) * (barAreaH / 2 - 15);
+  ctx.fillStyle = lastCum > 0 ? '#ef4444' : '#22c55e';
+  ctx.font = 'bold 11px Inter, sans-serif';
+  ctx.fillText((lastCum > 0 ? '+' : '') + lastCum, lastX + 8, lastY + 4);
+
+  ctx.fillStyle = '#ef4444'; ctx.font = 'bold 10px Inter, sans-serif';
+  ctx.fillText('\u25B2 Neu', 52, barAreaTop - 6);
+  ctx.fillStyle = '#22c55e';
+  ctx.fillText('\u25BC Resolved', 100, barAreaTop - 6);
+  ctx.fillStyle = '#7c3aed';
+  ctx.fillText('\u2500 Net (kum.)', w - 100, barAreaTop - 6);
+}
+
+// ==================== WIP AGING ====================
+function generateWipItems(team, seed) {
+  const rng      = seededRandom(seed + 42);
+  const prefixes = ['AUTH','PAY','UI','API','DB','FE','BE','INFRA','DATA','SEC'];
+  const items    = [];
+  for (let i = 0; i < team.wipCount; i++) {
+    const prefix = prefixes[Math.floor(rng() * prefixes.length)];
+    const num    = Math.floor(rng() * 900) + 100;
+    const age    = Math.max(1, Math.round(team.wipAvgAge * (0.5 + rng())));
+    items.push({ name: prefix + '-' + num, age });
+  }
+  items.sort((a, b) => b.age - a.age);
+  return items;
+}
+
+function drawWipAging(team, wipItems) {
+  const canvas = document.getElementById('chartWipAging');
+  const ctx    = canvas.getContext('2d');
+  const dpr    = window.devicePixelRatio || 1;
+  const rect   = canvas.getBoundingClientRect();
+  canvas.width  = rect.width  * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const w = rect.width, h = rect.height;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, 0, w, h);
+
+  const p50    = team.p50;
+  const p85    = team.p85;
+  const visibleItems = wipItems.slice(0, 12);
+  const maxAge = Math.max(p85 * 1.5, Math.max(...visibleItems.map(i => i.age)) + 2);
+  const barH   = Math.min(26, (h - 50) / Math.max(visibleItems.length, 1));
+  const startY = 20;
+
+  const drawVLine = (val, label, color) => {
+    const x = 80 + (val / maxAge) * (w - 100);
+    ctx.setLineDash([4, 3]); ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, 8); ctx.lineTo(x, startY + visibleItems.length * (barH + 4)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color; ctx.font = 'bold 10px Inter, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(label, x, 8); ctx.textAlign = 'left';
+  };
+
+  drawVLine(p50, 'P50', '#22c55e');
+  drawVLine(p85, 'P85', '#eab308');
+
+  visibleItems.forEach((item, i) => {
+    const y        = startY + i * (barH + 4);
+    const barWidth = (item.age / maxAge) * (w - 100);
+    const color    = item.age > p85 ? 'rgba(239,68,68,0.6)' : item.age > p50 ? 'rgba(234,179,8,0.4)' : 'rgba(59,130,246,0.4)';
+
+    ctx.fillStyle = '#374151'; ctx.font = '11px Inter, sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(item.name, 75, y + barH / 2 + 4);
+    ctx.textAlign = 'left';
+
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.roundRect(80, y, barWidth, barH, 4); ctx.fill();
+
+    ctx.fillStyle = '#374151'; ctx.font = 'bold 11px Inter, sans-serif';
+    ctx.fillText(item.age + 'd', 80 + barWidth + 6, y + barH / 2 + 4);
+    if (item.age > p85) { ctx.fillStyle = '#ef4444'; ctx.fillText('\u26A0', 80 + barWidth + 32, y + barH / 2 + 4); }
+  });
+
+  ctx.fillStyle = '#9ca3af'; ctx.font = '10px Inter, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Alter in Tagen \u2192', w / 2, h - 8);
+  ctx.textAlign = 'left';
+}
+
+// ==================== INIT ====================
+renderTable('all');
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTeamDashboard(); });
+document.addEventListener('mouseover', e => {
+  const btn = e.target.closest('.info-btn');
+  if (!btn) return;
+  const tip = btn.querySelector('.tooltip');
+  if (!tip) return;
+  const rect = btn.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - 120;
+  left = Math.max(8, Math.min(left, window.innerWidth - 248));
+  tip.style.left = left + 'px';
+  tip.style.top  = (rect.top - 8) + 'px';
+  tip.style.transform = 'translateY(-100%)';
+});
+</script>
+</body>
+</html>

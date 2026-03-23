@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delivery Health Dashboard — Übersicht</title>
+<style>
+  :root {
+    --green: #22c55e; --green-bg: #f0fdf4; --green-border: #bbf7d0;
+    --yellow: #eab308; --yellow-bg: #fefce8; --yellow-border: #fef08a;
+    --red: #ef4444; --red-bg: #fef2f2; --red-border: #fecaca;
+    --blue: #3b82f6; --blue-light: #dbeafe;
+    --orange: #f97316; --orange-bg: #fff7ed;
+    --purple: #7c3aed; --purple-bg: #faf5ff; --purple-border: #e9d5ff;
+    --teal: #0f766e; --teal-bg: #f0fdfa; --teal-border: #99f6e4;
+    --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
+    --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280;
+    --gray-700: #374151; --gray-800: #1f2937; --gray-900: #111827;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: #0f172a; color: var(--gray-800); min-height: 100vh; }
+
+  /* Hero */
+  .hero { background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%); padding: 64px 32px 48px; text-align: center; border-bottom: 1px solid #1e293b; }
+  .hero-tag { display: inline-flex; align-items: center; gap: 6px; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); color: #93c5fd; font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 20px; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 20px; }
+  .hero h1 { font-size: 38px; font-weight: 800; color: white; line-height: 1.15; margin-bottom: 12px; }
+  .hero h1 span { background: linear-gradient(90deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .hero p { font-size: 16px; color: #94a3b8; max-width: 600px; margin: 0 auto 32px; line-height: 1.65; }
+  .hero-meta { display: flex; justify-content: center; gap: 24px; font-size: 13px; color: #64748b; }
+  .hero-meta span { display: flex; align-items: center; gap: 5px; }
+
+  /* Main content */
+  .main { max-width: 1100px; margin: 0 auto; padding: 48px 32px 80px; }
+  .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #475569; font-weight: 700; margin-bottom: 20px; }
+
+  /* Iteration Cards */
+  .iterations { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 56px; }
+
+  .iter-card { background: white; border-radius: 16px; overflow: hidden; border: 2px solid var(--gray-200); transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s; display: flex; flex-direction: column; }
+  .iter-card:hover { transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.15); }
+  .iter-card.iter-1:hover { border-color: #3b82f6; }
+  .iter-card.iter-2:hover { border-color: #7c3aed; }
+  .iter-card.iter-3:hover { border-color: #0f766e; }
+
+  .iter-card-header { padding: 24px 24px 16px; border-bottom: 1px solid var(--gray-100); }
+  .iter-num { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .iter-1 .iter-num { color: #3b82f6; }
+  .iter-2 .iter-num { color: #7c3aed; }
+  .iter-3 .iter-num { color: #0f766e; }
+  .iter-card h2 { font-size: 17px; font-weight: 700; color: var(--gray-900); line-height: 1.3; margin-bottom: 6px; }
+  .iter-card .iter-desc { font-size: 13px; color: var(--gray-500); line-height: 1.55; }
+
+  .iter-card-body { padding: 20px 24px; flex: 1; display: flex; flex-direction: direction; flex-direction: column; gap: 16px; }
+
+  /* Data Requirements */
+  .data-section h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); font-weight: 700; margin-bottom: 10px; }
+  .data-field { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; font-size: 13px; margin-bottom: 6px; }
+  .data-field:last-child { margin-bottom: 0; }
+  .data-field.required { background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; }
+  .data-field.optional { background: var(--gray-50); border: 1px solid var(--gray-200); color: var(--gray-500); }
+  .data-field.new { background: #ede9fe; border: 1px solid #c4b5fd; color: #6d28d9; }
+  .data-field .df-icon { font-size: 14px; flex-shrink: 0; margin-top: 0px; }
+  .data-field .df-content { flex: 1; }
+  .data-field .df-name { font-weight: 600; display: block; }
+  .data-field .df-hint { font-size: 11px; opacity: 0.75; margin-top: 1px; display: block; }
+
+  /* Metrics section */
+  .metrics-section h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); font-weight: 700; margin-bottom: 10px; }
+  .metric-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 20px; margin: 3px 2px; }
+  .iter-1 .metric-tag { background: #dbeafe; color: #1e40af; }
+  .iter-2 .metric-tag { background: #ede9fe; color: #5b21b6; }
+  .iter-3 .metric-tag { background: #f0fdfa; color: #0f766e; }
+
+  /* CTA button */
+  .iter-card-footer { padding: 16px 24px; border-top: 1px solid var(--gray-100); }
+  .iter-card-footer a { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; border-radius: 10px; font-size: 14px; font-weight: 600; text-decoration: none; transition: all 0.15s; }
+  .iter-1 .iter-card-footer a { background: #dbeafe; color: #1e40af; }
+  .iter-1 .iter-card-footer a:hover { background: #3b82f6; color: white; }
+  .iter-2 .iter-card-footer a { background: #ede9fe; color: #5b21b6; }
+  .iter-2 .iter-card-footer a:hover { background: #7c3aed; color: white; }
+  .iter-3 .iter-card-footer a { background: #f0fdfa; color: #0f766e; }
+  .iter-3 .iter-card-footer a:hover { background: #0f766e; color: white; }
+
+  /* Legend */
+  .legend { background: white; border-radius: 14px; padding: 24px 28px; border: 1px solid var(--gray-200); }
+  .legend h3 { font-size: 14px; font-weight: 700; color: var(--gray-700); margin-bottom: 16px; }
+  .legend-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--gray-700); }
+  .legend-badge { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .lb-green  { background: #dcfce7; }
+  .lb-purple { background: #ede9fe; }
+  .lb-gray   { background: var(--gray-100); }
+
+  /* Progression Arrow */
+  .progression { display: flex; align-items: center; justify-content: center; gap: 0; margin-bottom: 48px; }
+  .prog-step { background: white; border-radius: 10px; padding: 14px 20px; border: 1px solid var(--gray-200); text-align: center; min-width: 220px; }
+  .prog-step .ps-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-400); font-weight: 700; margin-bottom: 4px; }
+  .prog-step .ps-title { font-size: 13px; font-weight: 700; color: var(--gray-800); }
+  .prog-step.s1 { border-color: #bfdbfe; background: #eff6ff; }
+  .prog-step.s1 .ps-title { color: #1e40af; }
+  .prog-step.s2 { border-color: #ddd6fe; background: #faf5ff; }
+  .prog-step.s2 .ps-title { color: #5b21b6; }
+  .prog-step.s3 { border-color: #99f6e4; background: #f0fdfa; }
+  .prog-step.s3 .ps-title { color: #0f766e; }
+  .prog-arrow { font-size: 20px; color: #475569; margin: 0 8px; }
+
+  @media (max-width: 900px) {
+    .iterations { grid-template-columns: 1fr; }
+    .legend-grid { grid-template-columns: 1fr 1fr; }
+    .progression { flex-direction: column; }
+    .prog-arrow { transform: rotate(90deg); }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-tag">OKR 3.2 &middot; Delivery Health</div>
+  <h1>Dashboard <span>Mockup-Iterationen</span></h1>
+  <p>Drei Ausbaustufen des Dashboards &mdash; abgestimmt auf die jeweils verfügbaren Daten aus den Tracking-Tools (Jira / Azure DevOps).</p>
+  <div class="hero-meta">
+    <span>📅 Stand: Q2 2026</span>
+    <span>👥 12 / 15 Teams onboarded</span>
+    <span>🔀 3 Iterationen</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Progression -->
+  <div class="section-label">Daten-Reifegrad</div>
+  <div class="progression">
+    <div class="prog-step s1">
+      <div class="ps-label">Iteration 1</div>
+      <div class="ps-title">Flow-Grundmetriken</div>
+    </div>
+    <div class="prog-arrow">›</div>
+    <div class="prog-step s2">
+      <div class="ps-label">Iteration 2</div>
+      <div class="ps-title">+ Work Item Typen</div>
+    </div>
+    <div class="prog-arrow">›</div>
+    <div class="prog-step s3">
+      <div class="ps-label">Iteration 3</div>
+      <div class="ps-title">+ Commitment &amp; Scope</div>
+    </div>
+  </div>
+
+  <!-- Cards -->
+  <div class="section-label">Iterationen im Detail</div>
+  <div class="iterations">
+
+    <!-- ===== ITERATION 1 ===== -->
+    <div class="iter-card iter-1">
+      <div class="iter-card-header">
+        <div class="iter-num">Iteration 1</div>
+        <h2>Activated Date &amp; Closed Date</h2>
+        <p class="iter-desc">Nur Zeitstempel — kein Typ, kein Scope. Fokus auf Flow-Grundmetriken: Wie schnell und stabil liefert jedes Team?</p>
+      </div>
+      <div class="iter-card-body">
+
+        <div class="data-section">
+          <h4>Benötigte Datenfelder</h4>
+          <div class="data-field required">
+            <span class="df-icon">✅</span>
+            <span class="df-content">
+              <span class="df-name">Activated Date</span>
+              <span class="df-hint">Zeitpunkt, ab dem ein Work Item „In Progress" geht</span>
+            </span>
+          </div>
+          <div class="data-field required">
+            <span class="df-icon">✅</span>
+            <span class="df-content">
+              <span class="df-name">Closed Date</span>
+              <span class="df-hint">Zeitpunkt, an dem ein Work Item als Done gilt</span>
+            </span>
+          </div>
+          <div class="data-field optional">
+            <span class="df-icon">○</span>
+            <span class="df-content">
+              <span class="df-name">Work Item Typ</span>
+              <span class="df-hint">Nicht benötigt — alle Items zählen gleich</span>
+            </span>
+          </div>
+          <div class="data-field optional">
+            <span class="df-icon">○</span>
+            <span class="df-content">
+              <span class="df-name">Commit-Scope / Tags</span>
+              <span class="df-hint">Nicht benötigt — kein Q-Fortschritt möglich</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="metrics-section">
+          <h4>Verfügbare Metriken</h4>
+          <span class="metric-tag">Throughput / Woche</span>
+          <span class="metric-tag">Cycle Time P50 / P85</span>
+          <span class="metric-tag">WIP &amp; Ø Alter</span>
+          <span class="metric-tag">Flow Balance (Zufluss/Abfluss)</span>
+          <span class="metric-tag">Cycle Time Scatterplot</span>
+          <span class="metric-tag">WIP Aging Chart</span>
+        </div>
+      </div>
+      <div class="iter-card-footer">
+        <a href="dashboard-iteration1.html">Iteration 1 öffnen &rarr;</a>
+      </div>
+    </div>
+
+    <!-- ===== ITERATION 2 ===== -->
+    <div class="iter-card iter-2">
+      <div class="iter-card-header">
+        <div class="iter-num">Iteration 2</div>
+        <h2>+ Work Item Typ-Verteilung</h2>
+        <p class="iter-desc">Zusätzlich zu Iteration 1: Work Item Typen (User Story, Tech Story, Bug) ermöglichen Kapazitätsanalyse und Qualitätstrends.</p>
+      </div>
+      <div class="iter-card-body">
+
+        <div class="data-section">
+          <h4>Benötigte Datenfelder</h4>
+          <div class="data-field required">
+            <span class="df-icon">✅</span>
+            <span class="df-content">
+              <span class="df-name">Activated Date</span>
+              <span class="df-hint">Wie Iteration 1</span>
+            </span>
+          </div>
+          <div class="data-field required">
+            <span class="df-icon">✅</span>
+            <span class="df-content">
+              <span class="df-name">Closed Date</span>
+              <span class="df-hint">Wie Iteration 1</span>
+            </span>
+          </div>
+          <div class="data-field new">
+            <span class="df-icon">★</span>
+            <span class="df-content">
+              <span class="df-name">Work Item Typ</span>
+              <span class="df-hint">z.B. User Story · Tech Story · Bug (Jira Issue Type / ADO Work Item Type)</span>
+            </span>
+          </div>
+          <div class="data-field optional">
+            <span class="df-icon">○</span>
+            <span class="df-content">
+              <span class="df-name">Commit-Scope / Tags</span>
+              <span class="df-hint">Nicht benötigt — kein Q-Fortschritt möglich</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="metrics-section">
+          <h4>Zusätzliche Metriken (neu)</h4>
+          <span class="metric-tag">Capacity on Value Work</span>
+          <span class="metric-tag">Work Item Mix (US/TS/Bug)</span>
+          <span class="metric-tag">Net Bug Flow (Qualitätstrend)</span>
+          <span class="metric-tag">Stacked Throughput nach Typ</span>
+          <span class="metric-tag">CT Scatter nach Typ eingefärbt</span>
+          <span class="metric-tag">Teams mit hohem Bug-Anteil</span>
+        </div>
+      </div>
+      <div class="iter-card-footer">
+        <a href="dashboard-iteration2.html">Iteration 2 öffnen &rarr;</a>
+      </div>
+    </div>
+
+    <!-- ===== ITERATION 3 ===== -->
+    <div class="iter-card iter-3">
+      <div class="iter-card-header">
+        <div class="iter-num">Iteration 3 &mdash; Vollständig</div>
+        <h2>+ Commitment &amp; Scope-Tracking</h2>
+        <p class="iter-desc">Alle Daten vorhanden. Zusätzlich zu Iteration 2: committete Q-Scope Items und Änderungen am Scope ermöglichen echtes Delivery-Tracking.</p>
+      </div>
+      <div class="iter-card-body">
+
+        <div class="data-section">
+          <h4>Benötigte Datenfelder</h4>
+          <div class="data-field required">
+            <span class="df-icon">✅</span>
+            <span class="df-content">
+              <span class="df-name">Activated Date</span>
+              <span class="df-hint">Wie Iteration 1 &amp; 2</span>
+            </span>
+          </div>
+          <div class="data-field required">
+            <span class="df-icon">✅</span>
+            <span class="df-content">
+              <span class="df-name">Closed Date</span>
+              <span class="df-hint">Wie Iteration 1 &amp; 2</span>
+            </span>
+          </div>
+          <div class="data-field required">
+            <span class="df-icon">✅</span>
+            <span class="df-content">
+              <span class="df-name">Work Item Typ</span>
+              <span class="df-hint">Wie Iteration 2</span>
+            </span>
+          </div>
+          <div class="data-field new">
+            <span class="df-icon">★</span>
+            <span class="df-content">
+              <span class="df-name">Commit-Tag / Label</span>
+              <span class="df-hint">z.B. Label „Q2-2026-committed" in Jira oder Tag in ADO</span>
+            </span>
+          </div>
+          <div class="data-field new">
+            <span class="df-icon">★</span>
+            <span class="df-content">
+              <span class="df-name">Scope-Änderungen</span>
+              <span class="df-hint">Nachträglich hinzugefügte oder entfernte committed Items</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="metrics-section">
+          <h4>Zusätzliche Metriken (neu)</h4>
+          <span class="metric-tag">Q2 Delivery Progress</span>
+          <span class="metric-tag">Commitments % (done/committed)</span>
+          <span class="metric-tag">Pace-Projektion auf Quartalsende</span>
+          <span class="metric-tag">Scope Change Tracking</span>
+          <span class="metric-tag">On Track / At Risk / Off Track</span>
+        </div>
+      </div>
+      <div class="iter-card-footer">
+        <a href="dashboard-prototype.html">Iteration 3 öffnen &rarr;</a>
+      </div>
+    </div>
+
+  </div><!-- /iterations -->
+
+  <!-- Legend -->
+  <div class="section-label">Legende — Datenfelder</div>
+  <div class="legend">
+    <div class="legend-grid">
+      <div class="legend-item">
+        <div class="legend-badge lb-green">✅</div>
+        <div><strong>Pflichtfeld dieser Iteration</strong><br><span style="font-size:12px;color:var(--gray-500)">Ohne dieses Feld ist die Iteration nicht sinnvoll darstellbar</span></div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-badge lb-purple">★</div>
+        <div><strong>Neu in dieser Iteration</strong><br><span style="font-size:12px;color:var(--gray-500)">Zusätzliches Feld, das diese Iteration erst ermöglicht</span></div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-badge lb-gray">○</div>
+        <div><strong>Nicht benötigt</strong><br><span style="font-size:12px;color:var(--gray-500)">Feld existiert ggf., wird aber in dieser Iteration nicht genutzt</span></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</body>
+</html>
