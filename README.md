@@ -15,7 +15,7 @@ open index.html
 ## Structure
 
 ```
-OKR3.2/
+Dashboard
 ├── index.html                  ← Start page & iteration overview
 ├── dashboard-iteration1.html   ← Iteration 1: Activated & Closed Date only
 ├── dashboard-iteration2.html   ← Iteration 2: + Work Item Types
