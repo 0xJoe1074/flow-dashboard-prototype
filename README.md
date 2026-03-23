@@ -1,6 +1,6 @@
-# Delivery Health Dashboard — OKR 3.2
+# flow-dashboard-prototype
 
-Interactive HTML prototype for a **Delivery Health Dashboard** measuring flow metrics, cycle time and predictability across engineering teams. Built as a three-iteration mockup to show how the dashboard evolves as more data becomes available.
+A clickable **HTML mockup** for a Delivery Health Dashboard — measuring flow metrics, cycle time and predictability across engineering teams. Built as a three-iteration prototype to demonstrate how the dashboard evolves as more data becomes available.
 
 ## Live Preview
 
@@ -122,9 +122,3 @@ Adds **commitment scope** and **scope change tracking** on top of Iteration 2.
 | Flow Balance | Arrival rate ÷ Completion rate (last 4W) | ≤ 1.1 green · ≤ 1.3 yellow · > 1.3 red |
 | Capacity on Value Work | (Total items − Bug-fixes) ÷ Total items | ≥ 75% green · ≥ 60% yellow · < 60% red |
 | Q2 Delivery Progress | Done ÷ Committed (scope-tagged items) | ≥ 90% green · ≥ 70% yellow · < 70% red |
-
----
-
-## Context
-
-Built as a prototype for OKR 3.2 — improving delivery predictability and transparency across 15 engineering teams across Platform, Payments, Marketplace and Data & Analytics business units.
