@@ -94,10 +94,13 @@ app.post('/api/admin/token', (req, res) => {
     }
     setLocalToken(token.trim());
 
-    // Persist email + baseUrl so Jira API calls work immediately
+    // Persist email + baseUrl so Jira API calls work immediately (local dev only)
+    // If JIRA_EMAIL env var is set, skip saving email to config.json
     if (email || baseUrl) {
       const config = readConfig();
-      if (email)   config.jira.email   = email.trim();
+      if (email && !(process.env.JIRA_EMAIL && process.env.JIRA_EMAIL.trim())) {
+        config.jira.email = email.trim();
+      }
       if (baseUrl) config.jira.baseUrl = baseUrl.trim();
       writeConfig(config);
     }

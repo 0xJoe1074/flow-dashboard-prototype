@@ -1,7 +1,7 @@
 {
   "jira": {
     "baseUrl": "https://infoniqa.atlassian.net",
-    "email": "joerg.lindemann@brz.eu",
+    "email": "",
     "defaultActiveStatus": "In Progress",
     "defaultDoneStatus": "Done"
   },
