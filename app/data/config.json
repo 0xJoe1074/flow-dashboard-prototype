@@ -1,0 +1,31 @@
+{
+  "jira": {
+    "baseUrl": "https://infoniqa.atlassian.net",
+    "email": "joerg.lindemann@brz.eu",
+    "defaultActiveStatus": "In Progress",
+    "defaultDoneStatus": "Done"
+  },
+  "dashboard": {
+    "title": "Delivery Health Dashboard",
+    "iteration": 1,
+    "refreshIntervalMinutes": 15
+  },
+  "teams": [
+    {
+      "id": "8414127e-1825-42ae-90f7-f9c6b13aed52",
+      "name": "Orbit",
+      "businessUnit": "Infoniqa Orbit",
+      "jql": "project = PI AND issuetype in standardIssueTypes() ORDER BY updated DESC",
+      "activeStatus": null,
+      "doneStatus": null
+    },
+    {
+      "id": "44c39666-8108-46f4-afe0-64e9321a8a86",
+      "name": "Orbit",
+      "businessUnit": "Infoniqa Orbit",
+      "jql": "project = PI AND issuetype in standardIssueTypes() ORDER BY updated DESC",
+      "activeStatus": null,
+      "doneStatus": null
+    }
+  ]
+}

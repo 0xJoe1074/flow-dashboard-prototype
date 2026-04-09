@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Delivery Health Dashboard</title>
+<style>
+  :root {
+    --blue: #3b82f6; --blue-dark: #1d4ed8; --blue-light: #dbeafe;
+    --green: #22c55e; --green-bg: #f0fdf4; --green-border: #bbf7d0;
+    --red: #ef4444; --red-bg: #fef2f2; --red-border: #fecaca;
+    --yellow: #eab308; --yellow-bg: #fefce8; --yellow-border: #fef08a;
+    --purple: #7c3aed;
+    --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
+    --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280;
+    --gray-700: #374151; --gray-800: #1f2937; --gray-900: #111827;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--gray-50); color: var(--gray-800); min-height: 100vh; }
+
+  /* Top nav */
+  .topnav { background: #1e293b; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; }
+  .topnav-left { display: flex; align-items: center; gap: 12px; }
+  .topnav-brand { color: white; font-size: 15px; font-weight: 700; }
+  .topnav-sub { color: #64748b; font-size: 13px; }
+  .topnav-right a { color: #94a3b8; font-size: 13px; text-decoration: none; padding: 6px 14px; border-radius: 6px; border: 1px solid #334155; transition: all 0.15s; }
+  .topnav-right a:hover { background: #334155; color: white; }
+
+  /* Layout */
+  .layout { max-width: 880px; margin: 0 auto; padding: 32px 24px 80px; display: flex; flex-direction: column; gap: 24px; }
+
+  /* Card / Section */
+  .card { background: white; border: 1px solid var(--gray-200); border-radius: 12px; overflow: hidden; }
+  .card-header { padding: 18px 24px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; }
+  .card-header h2 { font-size: 15px; font-weight: 700; color: var(--gray-900); display: flex; align-items: center; gap: 8px; }
+  .card-header .badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+  .card-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Form elements */
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 13px; font-weight: 600; color: var(--gray-700); }
+  .field small { font-size: 11px; color: var(--gray-400); line-height: 1.4; margin-top: 2px; }
+  input[type="text"], input[type="url"], input[type="email"], input[type="password"], select, textarea {
+    padding: 9px 12px; border: 1px solid var(--gray-300); border-radius: 8px;
+    font-size: 14px; font-family: var(--font); background: white; color: var(--gray-800);
+    transition: border-color 0.15s, box-shadow 0.15s; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+  textarea { resize: vertical; min-height: 72px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 9px 18px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; font-family: var(--font); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--blue); color: white; }
+  .btn-primary:hover:not(:disabled) { background: var(--blue-dark); }
+  .btn-secondary { background: var(--gray-100); color: var(--gray-700); border: 1px solid var(--gray-200); }
+  .btn-secondary:hover:not(:disabled) { background: var(--gray-200); }
+  .btn-danger { background: var(--red-bg); color: #dc2626; border: 1px solid var(--red-border); }
+  .btn-danger:hover:not(:disabled) { background: #fee2e2; }
+  .btn-success { background: var(--green-bg); color: #16a34a; border: 1px solid var(--green-border); }
+  .btn-success:hover:not(:disabled) { background: #dcfce7; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  /* Status pill */
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-ok { background: var(--green-bg); color: #15803d; border: 1px solid var(--green-border); }
+  .status-err { background: var(--red-bg); color: #dc2626; border: 1px solid var(--red-border); }
+  .status-warn { background: var(--yellow-bg); color: #a16207; border: 1px solid var(--yellow-border); }
+  .status-info { background: var(--blue-light); color: #1d4ed8; border: 1px solid #bfdbfe; }
+
+  /* Team list */
+  .team-list { display: flex; flex-direction: column; gap: 10px; }
+  .team-item { border: 1px solid var(--gray-200); border-radius: 10px; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--gray-50); }
+  .team-item-info { flex: 1; min-width: 0; }
+  .team-item-name { font-weight: 700; font-size: 14px; color: var(--gray-900); }
+  .team-item-bu { font-size: 12px; color: var(--gray-400); margin-top: 1px; }
+  .team-item-jql { font-size: 11px; color: var(--gray-400); margin-top: 4px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 400px; }
+  .team-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .team-empty { text-align: center; padding: 32px; color: var(--gray-400); font-size: 14px; }
+
+  /* Team form (inline) */
+  .team-form { border: 2px solid var(--blue); border-radius: 10px; padding: 20px; background: #f8faff; display: none; flex-direction: column; gap: 14px; }
+  .team-form.visible { display: flex; }
+  .team-form h3 { font-size: 14px; font-weight: 700; color: var(--blue-dark); }
+
+  /* Iteration selector */
+  .iter-options { display: flex; flex-direction: column; gap: 10px; }
+  .iter-option { border: 2px solid var(--gray-200); border-radius: 10px; padding: 14px 18px; cursor: pointer; transition: border-color 0.15s, background 0.15s; display: flex; align-items: flex-start; gap: 12px; }
+  .iter-option:hover { border-color: var(--blue); background: #f0f7ff; }
+  .iter-option.selected { border-color: var(--blue); background: var(--blue-light); }
+  .iter-option.locked { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+  .iter-option input[type="radio"] { margin-top: 2px; flex-shrink: 0; }
+  .iter-option-content { flex: 1; }
+  .iter-option-title { font-size: 13px; font-weight: 700; color: var(--gray-800); }
+  .iter-option-desc { font-size: 12px; color: var(--gray-500); margin-top: 2px; line-height: 1.4; }
+  .iter-option-reqs { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .req-chip { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+  .req-available { background: var(--green-bg); color: #15803d; border: 1px solid var(--green-border); }
+  .req-missing { background: var(--gray-100); color: var(--gray-400); border: 1px solid var(--gray-200); }
+
+  /* Board import modal */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: white; border-radius: 14px; width: 90%; max-width: 640px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.2); overflow: hidden; }
+  .modal-header { padding: 20px 24px; border-bottom: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h3 { font-size: 16px; font-weight: 700; }
+  .modal-body { overflow-y: auto; flex: 1; padding: 16px 24px; display: flex; flex-direction: column; gap: 8px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: 8px; }
+  .board-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--gray-200); border-radius: 8px; cursor: pointer; transition: background 0.1s; }
+  .board-item:hover { background: var(--blue-light); border-color: var(--blue); }
+  .board-item input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; }
+  .board-item-info { flex: 1; min-width: 0; }
+  .board-item-name { font-weight: 600; font-size: 13px; color: var(--gray-900); }
+  .board-item-meta { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+  .board-item-jql  { font-size: 10px; color: var(--gray-400); font-family: monospace; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .board-already   { font-size: 10px; font-weight: 600; color: #16a34a; background: var(--green-bg); border: 1px solid var(--green-border); border-radius: 10px; padding: 1px 7px; flex-shrink: 0; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--gray-900); color: white; padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 500; box-shadow: 0 8px 24px rgba(0,0,0,0.2); z-index: 1000; display: none; max-width: 360px; }
+  .toast.show { display: flex; align-items: center; gap: 8px; animation: slideIn 0.25s ease; }
+  .toast.toast-ok { background: #16a34a; }
+  .toast.toast-err { background: #dc2626; }
+  @keyframes slideIn { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  /* Cache status bar */
+  .cache-bar { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
+  .cache-bar-info { color: var(--gray-500); }
+  .cache-bar-info strong { color: var(--gray-700); }
+
+  /* Separator */
+  .divider { border: none; border-top: 1px solid var(--gray-100); margin: 4px 0; }
+
+  /* Refresh interval */
+  select.inline { width: auto; display: inline-block; }
+
+  @media (max-width: 640px) {
+    .field-row { grid-template-columns: 1fr; }
+    .layout { padding: 16px 16px 60px; }
+    .topnav { padding: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-left">
+    <span class="topnav-brand">INFONIQA</span>
+    <span class="topnav-sub">Delivery Health Dashboard · Admin</span>
+  </div>
+  <div class="topnav-right">
+    <a href="/" target="_blank">↗ Dashboard öffnen</a>
+  </div>
+</nav>
+
+<div class="layout">
+
+  <!-- ── Section 1: Jira Verbindung ──────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2>🔗 Jira Verbindung</h2>
+      <span id="connStatusBadge" class="status-pill status-info">Nicht getestet</span>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Jira URL</label>
+          <input type="url" id="jiraBaseUrl" placeholder="https://company.atlassian.net">
+        </div>
+        <div class="field">
+          <label>E-Mail / Service-Account</label>
+          <input type="email" id="jiraEmail" placeholder="user@company.com">
+        </div>
+      </div>
+      <div class="field">
+        <label>API Token</label>
+        <input type="password" id="jiraToken" placeholder="Token eingeben (wird verschlüsselt gespeichert)">
+        <small>Persönlichen API Token erstellen unter: <strong>id.atlassian.com → Security → API tokens</strong></small>
+      </div>
+      <div id="tokenEnvNotice" class="status-pill status-warn" style="display:none">
+        ⚠ Token ist als Azure Umgebungsvariable gesetzt — Eingabe hier ist deaktiviert.
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="saveTokenBtn">Token speichern</button>
+        <button class="btn btn-secondary" id="testConnBtn">Verbindung testen</button>
+        <span id="connTestResult"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Section 2: Status-Mapping ───────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2>🗂 Status-Mapping (global)</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--gray-500);line-height:1.6">
+        Welcher Jira-Status bedeutet <strong>„Arbeit begonnen"</strong> (Activated Date) und <strong>„Abgeschlossen"</strong> (Closed Date)?
+        Diese Einstellung gilt für alle Teams. Einzelne Teams können sie unten überschreiben.
+      </p>
+      <div class="field-row">
+        <div class="field">
+          <label>Activated-Status (global)</label>
+          <select id="defaultActiveStatus">
+            <option value="In Progress">In Progress</option>
+          </select>
+          <small>z.B. „In Progress", „Active", „In Bearbeitung"</small>
+        </div>
+        <div class="field">
+          <label>Done-Status (global)</label>
+          <select id="defaultDoneStatus">
+            <option value="Done">Done</option>
+          </select>
+          <small>z.B. „Done", „Closed", „Erledigt"</small>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary btn-sm" id="loadStatusesBtn">Status-Liste aus Jira laden</button>
+        <span id="statusLoadResult" style="font-size:12px;color:var(--gray-400)"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Section 3: Teams ─────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2>👥 Teams</h2>
+      <span id="teamCountBadge" class="badge" style="background:var(--blue-light);color:var(--blue-dark)">0 Teams</span>
+    </div>
+    <div class="card-body">
+      <div class="team-list" id="teamList">
+        <div class="team-empty" id="teamEmpty">Noch keine Teams konfiguriert. Füge das erste Team hinzu.</div>
+      </div>
+
+      <!-- Team form -->
+      <div class="team-form" id="teamForm">
+        <h3 id="teamFormTitle">Team hinzufügen</h3>
+        <input type="hidden" id="teamId">
+        <div class="field-row">
+          <div class="field">
+            <label>Team-Name *</label>
+            <input type="text" id="teamName" placeholder="z.B. Platform Core">
+          </div>
+          <div class="field">
+            <label>Business Unit</label>
+            <input type="text" id="teamBU" placeholder="z.B. Platform">
+          </div>
+        </div>
+        <div class="field">
+          <label>JQL-Filter *</label>
+          <textarea id="teamJQL" placeholder="project = MYPROJECT AND issuetype in (Story, Bug, Task)"></textarea>
+          <small>Genau der JQL-Filter, den du in Jira selbst für dieses Team verwenden würdest.</small>
+          <div class="btn-row" style="margin-top:6px">
+            <button class="btn btn-secondary btn-sm" id="previewJqlBtn">Vorschau (Issues zählen)</button>
+            <span id="jqlPreviewResult" style="font-size:12px;color:var(--gray-500)"></span>
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--gray-200);padding-top:14px">
+          <div style="font-size:12px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">
+            Status-Override (optional — überschreibt globale Einstellung)
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>Activated-Status</label>
+              <select id="teamActiveStatus">
+                <option value="">— Global verwenden —</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Done-Status</label>
+              <select id="teamDoneStatus">
+                <option value="">— Global verwenden —</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="saveTeamBtn">Team speichern</button>
+          <button class="btn btn-secondary" id="cancelTeamBtn">Abbrechen</button>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top:4px">
+        <button class="btn btn-secondary" id="addTeamBtn">+ Team hinzufügen</button>
+        <button class="btn btn-primary" id="importBoardsBtn">⬇ Teams aus Jira laden</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Section 4: Dashboard-Einstellungen ─────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2>⚙️ Dashboard-Einstellungen</h2>
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <label>Dashboard-Titel</label>
+        <input type="text" id="dashboardTitle" placeholder="Delivery Health Dashboard">
+      </div>
+      <div class="field">
+        <label>Dashboard-Iteration</label>
+        <div class="iter-options" id="iterOptions">
+          <label class="iter-option" id="iter1opt">
+            <input type="radio" name="iteration" value="1">
+            <div class="iter-option-content">
+              <div class="iter-option-title">Iteration 1 — Activated &amp; Closed Date</div>
+              <div class="iter-option-desc">Throughput, Cycle Time P50/P85, WIP, Flow Balance</div>
+              <div class="iter-option-reqs">
+                <span class="req-chip req-available">✓ Activated Date</span>
+                <span class="req-chip req-available">✓ Closed Date</span>
+              </div>
+            </div>
+          </label>
+          <label class="iter-option" id="iter2opt">
+            <input type="radio" name="iteration" value="2">
+            <div class="iter-option-content">
+              <div class="iter-option-title">Iteration 2 — + Work Item Types</div>
+              <div class="iter-option-desc">Zusätzlich: Capacity on Value Work, Bug-Mix, Type-Breakdown</div>
+              <div class="iter-option-reqs">
+                <span class="req-chip req-available">✓ Activated Date</span>
+                <span class="req-chip req-available">✓ Closed Date</span>
+                <span class="req-chip req-available">✓ Work Item Type</span>
+              </div>
+            </div>
+          </label>
+          <label class="iter-option locked" id="iter3opt">
+            <input type="radio" name="iteration" value="3" disabled>
+            <div class="iter-option-content">
+              <div class="iter-option-title">Iteration 3 — + Commitment Tracking</div>
+              <div class="iter-option-desc">Zusätzlich: Q-Delivery Progress, Scope Changes, Pace Projection</div>
+              <div class="iter-option-reqs">
+                <span class="req-chip req-available">✓ Activated Date</span>
+                <span class="req-chip req-available">✓ Closed Date</span>
+                <span class="req-chip req-available">✓ Work Item Type</span>
+                <span class="req-chip req-missing">✗ Commit-Tags (z.B. Q2-2026-committed)</span>
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+      <div class="field" style="max-width:280px">
+        <label>Daten-Refresh-Intervall</label>
+        <select id="refreshInterval">
+          <option value="15">15 Minuten (empfohlen)</option>
+          <option value="30">30 Minuten</option>
+          <option value="60">1 Stunde</option>
+          <option value="240">4 Stunden</option>
+        </select>
+        <small>Wie oft werden Daten automatisch aus Jira aktualisiert?</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Save all ─────────────────────────────────────────────────── -->
+  <div style="display:flex;justify-content:flex-end;padding:0 4px">
+    <button class="btn btn-primary" id="saveAllBtn" style="padding:12px 32px;font-size:15px">
+      💾 Alle Einstellungen speichern
+    </button>
+  </div>
+
+  <!-- ── Section 5: Daten & Cache ─────────────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2>🔄 Daten &amp; Cache</h2>
+    </div>
+    <div class="card-body">
+      <div class="cache-bar" id="cacheBar">
+        <span class="cache-bar-info" id="cacheInfo">Status wird geladen…</span>
+        <div class="btn-row">
+          <button class="btn btn-secondary btn-sm" id="refreshCacheBtn">Jetzt aktualisieren</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--gray-400);line-height:1.6">
+        Beim Aktualisieren werden alle konfigurierten Teams aus Jira geladen (90-Tage-Fenster).
+        Für 15 Teams dauert das ca. 20–40 Sekunden.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Board import modal -->
+<div class="modal-backdrop" id="boardModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Teams aus Jira Boards importieren</h3>
+      <button class="btn btn-secondary btn-sm" onclick="closeBoardModal()">✕</button>
+    </div>
+    <div class="modal-body" id="boardModalBody">
+      <div style="text-align:center;padding:24px;color:var(--gray-400)">Lade Boards…</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeBoardModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="importSelectedBtn">Ausgewählte importieren</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let config = null;
+let teams  = [];
+let statuses = [];
+let editingTeamId = null;
+
+// ── Init ───────────────────────────────────────────────────────────────
+async function init() {
+  await loadConfig();
+  await loadCacheStatus();
+}
+
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/admin/config');
+    config = await res.json();
+    teams  = config.teams || [];
+
+    // Jira
+    document.getElementById('jiraBaseUrl').value  = config.jira?.baseUrl || '';
+    document.getElementById('jiraEmail').value    = config.jira?.email   || '';
+
+    if (config.tokenFromEnv) {
+      document.getElementById('jiraToken').disabled = true;
+      document.getElementById('saveTokenBtn').disabled = true;
+      document.getElementById('tokenEnvNotice').style.display = 'flex';
+    }
+
+    // Status dropdowns (use current values as defaults; proper list loaded on demand)
+    setSelectValue('defaultActiveStatus', config.jira?.defaultActiveStatus || 'In Progress');
+    setSelectValue('defaultDoneStatus',   config.jira?.defaultDoneStatus   || 'Done');
+
+    // Dashboard settings
+    document.getElementById('dashboardTitle').value = config.dashboard?.title || '';
+    setSelectValue('refreshInterval', String(config.dashboard?.refreshIntervalMinutes || 15));
+
+    // Iteration
+    const iter = String(config.dashboard?.iteration || 1);
+    const radio = document.querySelector(`input[name="iteration"][value="${iter}"]`);
+    if (radio && !radio.disabled) {
+      radio.checked = true;
+      radio.closest('.iter-option').classList.add('selected');
+    }
+
+    // Connection status from token
+    if (config.hasToken) {
+      document.getElementById('connStatusBadge').className = 'status-pill status-ok';
+      document.getElementById('connStatusBadge').textContent = '✓ Token vorhanden';
+    } else {
+      document.getElementById('connStatusBadge').className = 'status-pill status-err';
+      document.getElementById('connStatusBadge').textContent = '✗ Kein Token';
+    }
+
+    renderTeams();
+  } catch (e) {
+    showToast('Konfiguration konnte nicht geladen werden: ' + e.message, 'err');
+  }
+}
+
+async function loadCacheStatus() {
+  try {
+    const res  = await fetch('/api/status');
+    const data = await res.json();
+    const info = document.getElementById('cacheInfo');
+    if (!data.cached) {
+      info.innerHTML = '<span style="color:var(--gray-400)">Noch keine Daten gecacht — klicke „Jetzt aktualisieren".</span>';
+    } else {
+      const age = Math.round((Date.now() - new Date(data.cachedAt).getTime()) / 60000);
+      const exp = data.expired ? ' <span style="color:#ef4444">(abgelaufen)</span>' : '';
+      info.innerHTML = `<strong>Zuletzt aktualisiert:</strong> vor ${age} Min.${exp}`;
+    }
+  } catch {}
+}
+
+// ── Save Token ─────────────────────────────────────────────────────────
+document.getElementById('saveTokenBtn').addEventListener('click', async () => {
+  const token   = document.getElementById('jiraToken').value.trim();
+  const email   = document.getElementById('jiraEmail').value.trim();
+  const baseUrl = document.getElementById('jiraBaseUrl').value.trim();
+  if (!token) { showToast('Token eingeben', 'err'); return; }
+  if (!email) { showToast('E-Mail / Service-Account eingeben', 'err'); return; }
+  const btn = document.getElementById('saveTokenBtn');
+  btn.disabled = true; btn.textContent = 'Speichere…';
+  try {
+    const res = await fetch('/api/admin/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, email, baseUrl })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    document.getElementById('jiraToken').value = '';
+    document.getElementById('connStatusBadge').className = 'status-pill status-ok';
+    document.getElementById('connStatusBadge').textContent = '✓ Token gespeichert';
+    showToast('Token gespeichert.', 'ok');
+  } catch (e) {
+    showToast(e.message, 'err');
+  }
+  btn.disabled = false; btn.textContent = 'Token speichern';
+});
+
+// ── Test Connection ────────────────────────────────────────────────────
+document.getElementById('testConnBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('testConnBtn');
+  btn.disabled = true; btn.textContent = 'Teste…';
+  const result = document.getElementById('connTestResult');
+  result.textContent = '';
+  try {
+    const res  = await fetch('/api/admin/jira/test');
+    const data = await res.json();
+    if (data.ok) {
+      result.innerHTML = `<span class="status-pill status-ok">✓ Verbunden als ${escHtml(data.user)}</span>`;
+      document.getElementById('connStatusBadge').className = 'status-pill status-ok';
+      document.getElementById('connStatusBadge').textContent = '✓ Verbunden';
+    } else {
+      result.innerHTML = `<span class="status-pill status-err">✗ ${escHtml(data.error)}</span>`;
+    }
+  } catch (e) {
+    result.innerHTML = `<span class="status-pill status-err">✗ ${escHtml(e.message)}</span>`;
+  }
+  btn.disabled = false; btn.textContent = 'Verbindung testen';
+});
+
+// ── Load Statuses ──────────────────────────────────────────────────────
+document.getElementById('loadStatusesBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('loadStatusesBtn');
+  btn.disabled = true; btn.textContent = 'Laden…';
+  const info = document.getElementById('statusLoadResult');
+  try {
+    const res  = await fetch('/api/admin/jira/statuses');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    statuses = data;
+    info.textContent = `${statuses.length} Status-Werte geladen.`;
+    populateStatusSelects();
+    showToast(`${statuses.length} Jira-Status-Werte geladen.`, 'ok');
+  } catch (e) {
+    info.textContent = '';
+    showToast('Konnte Status-Liste nicht laden: ' + e.message, 'err');
+  }
+  btn.disabled = false; btn.textContent = 'Status-Liste aus Jira laden';
+});
+
+function populateStatusSelects() {
+  const selects = [
+    'defaultActiveStatus', 'defaultDoneStatus', 'teamActiveStatus', 'teamDoneStatus'
+  ];
+  const current = {};
+  selects.forEach(id => { current[id] = document.getElementById(id).value; });
+
+  selects.slice(2).forEach(id => {
+    const sel = document.getElementById(id);
+    // Keep the "— Global —" first option for team overrides
+    const hasGlobal = sel.options[0]?.value === '';
+    sel.innerHTML = hasGlobal ? '<option value="">— Global verwenden —</option>' : '';
+    statuses.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.name; opt.textContent = `${s.name} (${s.category})`;
+      sel.appendChild(opt);
+    });
+    setSelectValue(id, current[id]);
+  });
+
+  // Global selects
+  ['defaultActiveStatus', 'defaultDoneStatus'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = '';
+    statuses.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.name; opt.textContent = `${s.name} (${s.category})`;
+      sel.appendChild(opt);
+    });
+    setSelectValue(id, current[id]);
+  });
+}
+
+// ── Teams ──────────────────────────────────────────────────────────────
+function renderTeams() {
+  const list  = document.getElementById('teamList');
+  const empty = document.getElementById('teamEmpty');
+  const badge = document.getElementById('teamCountBadge');
+  badge.textContent = `${teams.length} Team${teams.length !== 1 ? 's' : ''}`;
+
+  // Clear only team-item elements
+  list.querySelectorAll('.team-item').forEach(el => el.remove());
+
+  if (teams.length === 0) {
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    teams.forEach(t => {
+      const div = document.createElement('div');
+      div.className = 'team-item';
+      div.innerHTML = `
+        <div class="team-item-info">
+          <div class="team-item-name">${escHtml(t.name)}</div>
+          <div class="team-item-bu">${escHtml(t.businessUnit || '—')}</div>
+          <div class="team-item-jql">${escHtml(t.jql)}</div>
+        </div>
+        <div class="team-item-actions">
+          <button class="btn btn-secondary btn-sm" onclick="startEditTeam('${t.id}')">Bearbeiten</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTeam('${t.id}')">Löschen</button>
+        </div>
+      `;
+      list.insertBefore(div, document.getElementById('teamForm'));
+    });
+  }
+}
+
+document.getElementById('addTeamBtn').addEventListener('click', () => {
+  editingTeamId = null;
+  document.getElementById('teamFormTitle').textContent = 'Team hinzufügen';
+  document.getElementById('teamId').value   = '';
+  document.getElementById('teamName').value = '';
+  document.getElementById('teamBU').value   = '';
+  document.getElementById('teamJQL').value  = '';
+  document.getElementById('teamActiveStatus').value = '';
+  document.getElementById('teamDoneStatus').value   = '';
+  document.getElementById('jqlPreviewResult').textContent = '';
+  showTeamForm();
+  document.getElementById('teamName').focus();
+});
+
+function startEditTeam(id) {
+  const t = teams.find(t => t.id === id);
+  if (!t) return;
+  editingTeamId = id;
+  document.getElementById('teamFormTitle').textContent = 'Team bearbeiten';
+  document.getElementById('teamId').value   = t.id;
+  document.getElementById('teamName').value = t.name;
+  document.getElementById('teamBU').value   = t.businessUnit || '';
+  document.getElementById('teamJQL').value  = t.jql;
+  setSelectValue('teamActiveStatus', t.activeStatus  || '');
+  setSelectValue('teamDoneStatus',   t.doneStatus    || '');
+  document.getElementById('jqlPreviewResult').textContent = '';
+  showTeamForm();
+}
+
+function showTeamForm() {
+  document.getElementById('teamForm').classList.add('visible');
+  document.getElementById('addTeamBtn').style.display = 'none';
+  document.getElementById('teamForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function hideTeamForm() {
+  document.getElementById('teamForm').classList.remove('visible');
+  document.getElementById('addTeamBtn').style.display = '';
+  editingTeamId = null;
+}
+
+document.getElementById('cancelTeamBtn').addEventListener('click', hideTeamForm);
+
+document.getElementById('saveTeamBtn').addEventListener('click', () => {
+  const name = document.getElementById('teamName').value.trim();
+  const bu   = document.getElementById('teamBU').value.trim();
+  const jql  = document.getElementById('teamJQL').value.trim();
+  const activeStatus = document.getElementById('teamActiveStatus').value || null;
+  const doneStatus   = document.getElementById('teamDoneStatus').value   || null;
+
+  if (!name) { showToast('Team-Name ist Pflichtfeld.', 'err'); return; }
+  if (!jql)  { showToast('JQL-Filter ist Pflichtfeld.', 'err'); return; }
+
+  if (editingTeamId) {
+    const idx = teams.findIndex(t => t.id === editingTeamId);
+    if (idx >= 0) teams[idx] = { ...teams[idx], name, businessUnit: bu, jql, activeStatus, doneStatus };
+  } else {
+    teams.push({ id: crypto.randomUUID(), name, businessUnit: bu, jql, activeStatus, doneStatus });
+  }
+
+  renderTeams();
+  hideTeamForm();
+  showToast(`Team "${name}" ${editingTeamId ? 'aktualisiert' : 'hinzugefügt'}.`, 'ok');
+});
+
+function deleteTeam(id) {
+  const t = teams.find(t => t.id === id);
+  if (!t || !confirm(`Team "${t.name}" wirklich löschen?`)) return;
+  teams = teams.filter(t => t.id !== id);
+  renderTeams();
+  showToast(`Team "${t.name}" gelöscht.`, 'ok');
+}
+
+// ── Board import ──────────────────────────────────────────────────────
+document.getElementById('importBoardsBtn').addEventListener('click', async () => {
+  document.getElementById('boardModal').classList.add('open');
+  const body = document.getElementById('boardModalBody');
+  body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--gray-400)">Lade Boards aus Jira…</div>';
+  try {
+    const res    = await fetch('/api/admin/jira/boards');
+    const boards = await res.json();
+    if (!res.ok) throw new Error(boards.error);
+    if (!boards.length) {
+      body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--gray-400)">Keine Boards gefunden.</div>';
+      return;
+    }
+    const existingNames = new Set(teams.map(t => t.name.toLowerCase()));
+    body.innerHTML = '';
+    boards.forEach(b => {
+      const already  = existingNames.has(b.name.toLowerCase());
+      const safeData = JSON.stringify(b).replace(/"/g, '&quot;');
+      const div = document.createElement('label');
+      div.className = 'board-item';
+      div.innerHTML = `
+        <input type="checkbox" value="${b.id}" data-board="${safeData}" ${already ? 'disabled' : ''}>
+        <div class="board-item-info">
+          <div class="board-item-name">${escHtml(b.name)}</div>
+          <div class="board-item-meta">${escHtml(b.type)} · Projekt: ${escHtml(b.projectName || b.projectKey || '—')}</div>
+          <div class="board-item-jql">${escHtml(b.jql)}</div>
+        </div>
+        ${already ? '<span class="board-already">✓ vorhanden</span>' : ''}
+      `;
+      body.appendChild(div);
+    });
+  } catch (e) {
+    body.innerHTML = `<div style="color:#dc2626;padding:16px">Fehler: ${escHtml(e.message)}</div>`;
+  }
+});
+
+document.getElementById('importSelectedBtn').addEventListener('click', () => {
+  const checked = document.querySelectorAll('#boardModalBody input[type="checkbox"]:checked:not([disabled])');
+  if (!checked.length) { showToast('Kein Board ausgewählt.', 'err'); return; }
+  let added = 0;
+  checked.forEach(cb => {
+    const b = JSON.parse(cb.dataset.board);
+    teams.push({
+      id:           crypto.randomUUID(),
+      name:         b.name,
+      businessUnit: b.projectName || '',
+      jql:          b.jql,
+      activeStatus: null,
+      doneStatus:   null
+    });
+    added++;
+  });
+  renderTeams();
+  closeBoardModal();
+  showToast(`${added} Team${added !== 1 ? 's' : ''} importiert — bitte noch "Alle Einstellungen speichern" klicken.`, 'ok');
+});
+
+function closeBoardModal() {
+  document.getElementById('boardModal').classList.remove('open');
+}
+
+document.getElementById('boardModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('boardModal')) closeBoardModal();
+});
+
+// ── JQL Preview ────────────────────────────────────────────────────────
+document.getElementById('previewJqlBtn').addEventListener('click', async () => {
+  const jql = document.getElementById('teamJQL').value.trim();
+  const result = document.getElementById('jqlPreviewResult');
+  if (!jql) { result.textContent = 'JQL eingeben'; return; }
+  result.textContent = 'Lade…';
+  try {
+    const res  = await fetch('/api/admin/jira/preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jql })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    result.innerHTML = `<span style="color:#16a34a;font-weight:700">✓ ${data.count} Issues gefunden</span>`;
+  } catch (e) {
+    result.innerHTML = `<span style="color:#dc2626">✗ ${escHtml(e.message)}</span>`;
+  }
+});
+
+// ── Iteration selector ─────────────────────────────────────────────────
+document.querySelectorAll('input[name="iteration"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    document.querySelectorAll('.iter-option').forEach(el => el.classList.remove('selected'));
+    radio.closest('.iter-option').classList.add('selected');
+  });
+});
+
+// ── Save All ───────────────────────────────────────────────────────────
+document.getElementById('saveAllBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('saveAllBtn');
+  btn.disabled = true; btn.textContent = 'Speichere…';
+
+  const iteration = parseInt(
+    document.querySelector('input[name="iteration"]:not([disabled]):checked')?.value || 1
+  );
+
+  const payload = {
+    jira: {
+      baseUrl: document.getElementById('jiraBaseUrl').value.trim(),
+      email:   document.getElementById('jiraEmail').value.trim(),
+      defaultActiveStatus: document.getElementById('defaultActiveStatus').value,
+      defaultDoneStatus:   document.getElementById('defaultDoneStatus').value
+    },
+    dashboard: {
+      title: document.getElementById('dashboardTitle').value.trim() || 'Delivery Health Dashboard',
+      iteration,
+      refreshIntervalMinutes: parseInt(document.getElementById('refreshInterval').value)
+    },
+    teams
+  };
+
+  try {
+    const res  = await fetch('/api/admin/config', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast('Einstellungen gespeichert.', 'ok');
+    config = payload;
+  } catch (e) {
+    showToast('Fehler: ' + e.message, 'err');
+  }
+  btn.disabled = false; btn.textContent = '💾 Alle Einstellungen speichern';
+});
+
+// ── Refresh Cache ──────────────────────────────────────────────────────
+document.getElementById('refreshCacheBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('refreshCacheBtn');
+  btn.disabled = true; btn.textContent = 'Aktualisiere…';
+  document.getElementById('cacheInfo').textContent = 'Daten werden aus Jira geladen…';
+  try {
+    const res  = await fetch('/api/admin/refresh', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    showToast(`Fertig — ${data.teams} Teams geladen.`, 'ok');
+    await loadCacheStatus();
+  } catch (e) {
+    showToast('Fehler: ' + e.message, 'err');
+    await loadCacheStatus();
+  }
+  btn.disabled = false; btn.textContent = 'Jetzt aktualisieren';
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function setSelectValue(id, val) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  for (const opt of sel.options) {
+    if (opt.value === val) { sel.value = val; return; }
+  }
+  // Value not in list — add it
+  if (val) {
+    const opt = document.createElement('option');
+    opt.value = val; opt.textContent = val;
+    sel.appendChild(opt);
+    sel.value = val;
+  }
+}
+
+function escHtml(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function showToast(msg, type = 'ok') {
+  const el = document.getElementById('toast');
+  el.textContent = (type === 'ok' ? '✓ ' : '✗ ') + msg;
+  el.className = `toast show toast-${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); }, 4000);
+}
+
+// ── Start ──────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

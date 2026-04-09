@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delivery Health Dashboard</title>
+<style>
+  :root {
+    --green: #22c55e; --green-bg: #f0fdf4; --green-border: #bbf7d0;
+    --yellow: #eab308; --yellow-bg: #fefce8; --yellow-border: #fef08a;
+    --red: #ef4444; --red-bg: #fef2f2; --red-border: #fecaca;
+    --blue: #3b82f6; --blue-dark: #1d4ed8; --blue-light: #dbeafe;
+    --orange: #f97316; --orange-bg: #fff7ed;
+    --purple: #7c3aed;
+    --gray-50: #f9fafb; --gray-100: #f3f4f6; --gray-200: #e5e7eb;
+    --gray-300: #d1d5db; --gray-400: #9ca3af; --gray-500: #6b7280;
+    --gray-700: #374151; --gray-800: #1f2937; --gray-900: #111827;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: var(--font); background: var(--gray-50); color: var(--gray-800); }
+
+  /* Top nav */
+  .iter-nav { background: #1e293b; padding: 9px 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .iter-nav-left { display: flex; align-items: center; gap: 6px; }
+  .iter-nav .nav-label { color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 10px; }
+  .iter-badge { font-size: 12px; padding: 5px 14px; border-radius: 6px; font-weight: 600; }
+  .iter-badge.iter-1 { background: var(--blue-dark); color: white; }
+  .iter-badge.iter-2 { background: #7c3aed; color: white; }
+  .iter-badge.iter-3 { background: #0f766e; color: white; }
+  .iter-nav-right { display: flex; gap: 8px; align-items: center; }
+  .admin-link { color: #94a3b8; font-size: 12px; text-decoration: none; padding: 5px 14px; border-radius: 6px; border: 1px solid #334155; transition: all 0.15s; }
+  .admin-link:hover { color: white; background: #334155; }
+
+  /* Data Banner */
+  .data-banner { background: #fffbeb; border-bottom: 2px solid #fcd34d; padding: 9px 32px; font-size: 12px; color: #92400e; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .data-banner strong { color: #78350f; margin-right: 4px; }
+  .chip-avail { display: inline-flex; align-items: center; gap: 3px; background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; border-radius: 20px; padding: 2px 9px; font-size: 11px; font-weight: 600; }
+  .chip-miss  { display: inline-flex; align-items: center; gap: 3px; background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; border-radius: 20px; padding: 2px 9px; font-size: 11px; text-decoration: line-through; opacity: 0.7; }
+
+  /* Header */
+  .header { background: white; border-bottom: 1px solid var(--gray-200); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .header h1 { font-size: 20px; font-weight: 700; }
+  .header .subtitle { font-size: 13px; color: var(--gray-500); margin-top: 2px; }
+  .header-right { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .badge { background: var(--blue-light); color: var(--blue); font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 12px; }
+  .filter-group { display: flex; gap: 8px; }
+  select { padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px; background: white; cursor: pointer; }
+
+  /* Loading / Error states */
+  .state-container { padding: 80px 32px; text-align: center; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--gray-200); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .state-title { font-size: 15px; font-weight: 600; color: var(--gray-700); }
+  .state-sub   { font-size: 13px; color: var(--gray-400); margin-top: 6px; }
+  .error-box { background: var(--red-bg); border: 1px solid var(--red-border); border-radius: 10px; padding: 20px 24px; max-width: 480px; margin: 0 auto; text-align: left; }
+  .error-box strong { color: #dc2626; }
+
+  /* KPI Strip */
+  .kpi-strip { display: flex; gap: 16px; padding: 20px 32px; background: white; border-bottom: 1px solid var(--gray-200); flex-wrap: wrap; }
+  .kpi-card { flex: 1; min-width: 160px; padding: 16px 20px; border-radius: 10px; border: 1px solid var(--gray-200); background: var(--gray-50); }
+  .kpi-value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+  .kpi-sub { font-size: 12px; color: var(--gray-500); margin-top: 2px; }
+  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); font-weight: 600; display: flex; align-items: center; }
+
+  /* Table */
+  .table-container { padding: 20px 32px; }
+  table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: visible; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  thead th { background: var(--gray-50); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); font-weight: 600; padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--gray-200); }
+  tbody td { padding: 14px 16px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+  tbody tr { cursor: pointer; transition: background 0.15s; }
+  tbody tr:hover { background: var(--blue-light); }
+  tbody tr:last-child td { border-bottom: none; }
+  .team-name { font-weight: 600; font-size: 14px; color: var(--blue); }
+  .team-bu   { font-size: 11px; color: var(--gray-400); }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--gray-700); }
+  th.sortable::after { content: ' ⇅'; font-size: 10px; }
+  .nav-hint { text-align: center; padding: 10px; font-size: 12px; color: var(--gray-400); }
+
+  /* Sparkline */
+  .sparkline-container { display: flex; align-items: center; gap: 10px; }
+  canvas.sparkline { height: 32px; width: 120px; }
+  .trend-badge { font-size: 13px; font-weight: 700; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .trend-up   { background: var(--green-bg); color: var(--green); }
+  .trend-down { background: var(--red-bg);   color: var(--red);   }
+  .trend-flat { background: var(--yellow-bg);color: var(--yellow);}
+  .avg-label  { font-size: 12px; color: var(--gray-500); }
+
+  /* Flow cells */
+  .flow-cell   { display: flex; align-items: center; gap: 10px; }
+  .flow-ratio  { font-size: 14px; font-weight: 700; padding: 4px 10px; border-radius: 6px; min-width: 50px; text-align: center; }
+  .flow-green  { background: var(--green-bg); color: #15803d; border: 1px solid var(--green-border); }
+  .flow-yellow { background: var(--yellow-bg); color: #a16207; border: 1px solid var(--yellow-border); }
+  .flow-red    { background: var(--red-bg); color: #dc2626; border: 1px solid var(--red-border); }
+  .flow-detail { font-size: 12px; color: var(--gray-500); line-height: 1.5; }
+
+  /* Team overlay */
+  .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; }
+  .overlay.active { display: flex; justify-content: center; align-items: flex-start; padding-top: 40px; }
+  .team-dashboard { background: white; border-radius: 14px; width: 90%; max-width: 1200px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .td-header { padding: 24px 32px; border-bottom: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center; }
+  .td-header h2 { font-size: 22px; margin-top: 6px; }
+  .td-header .close-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--gray-200); background: white; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+  .td-header .close-btn:hover { background: var(--gray-100); }
+  .td-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 24px 32px; }
+  .td-panel { border: 1px solid var(--gray-200); border-radius: 10px; padding: 20px; }
+  .td-panel h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); margin-bottom: 16px; font-weight: 600; }
+  .td-panel canvas { width: 100%; height: 220px; display: block; }
+  .back-link { color: var(--blue); cursor: pointer; font-size: 13px; font-weight: 500; }
+  .back-link:hover { text-decoration: underline; }
+
+  /* Tooltip */
+  .info-btn { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 50%; background: var(--gray-300); color: var(--gray-600); font-size: 9px; font-weight: 700; cursor: default; margin-left: 5px; vertical-align: middle; position: relative; }
+  .tooltip { display: none; position: fixed; background: #1e293b; color: white; font-size: 11px; font-weight: 400; line-height: 1.5; padding: 8px 12px; border-radius: 7px; white-space: pre-line; width: 240px; z-index: 9999; text-transform: none; letter-spacing: 0; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.25); }
+
+  /* Cache indicator */
+  .cache-indicator { font-size: 11px; color: var(--gray-400); display: flex; align-items: center; gap: 4px; }
+  .cache-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .cache-dot.stale { background: var(--yellow); }
+
+  /* Setup banner (when no teams configured) */
+  .setup-banner { margin: 32px; background: white; border: 2px dashed var(--gray-300); border-radius: 12px; padding: 40px; text-align: center; }
+  .setup-banner h2 { font-size: 18px; font-weight: 700; color: var(--gray-700); margin-bottom: 8px; }
+  .setup-banner p { color: var(--gray-500); font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+  .setup-banner a { display: inline-flex; align-items: center; gap: 6px; padding: 10px 24px; background: var(--blue); color: white; text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 600; }
+  .setup-banner a:hover { background: var(--blue-dark); }
+
+  @media (max-width: 1024px) {
+    .td-grid { grid-template-columns: 1fr; }
+    .kpi-strip { flex-wrap: wrap; }
+    .kpi-card { min-width: 140px; }
+    .header { flex-direction: column; align-items: flex-start; }
+    .table-container { padding: 12px 16px; }
+    .kpi-strip { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="iter-nav">
+  <div class="iter-nav-left">
+    <span class="nav-label">OKR 3.2 ·</span>
+    <span class="iter-badge iter-1" id="iterBadge">Iteration 1</span>
+  </div>
+  <div class="iter-nav-right">
+    <span class="cache-indicator" id="cacheIndicator">
+      <span class="cache-dot" id="cacheDot"></span>
+      <span id="cacheLabel">Lade…</span>
+    </span>
+    <a class="admin-link" href="/admin">⚙ Admin</a>
+  </div>
+</div>
+
+<!-- Data availability banner -->
+<div class="data-banner" id="dataBanner">
+  <strong>Verfügbare Daten:</strong>
+  <span class="chip-avail">✓ Activated Date</span>
+  <span class="chip-avail">✓ Closed Date</span>
+  <span class="chip-miss" id="bannerTypeChip">Work Item Types</span>
+  <span class="chip-miss" id="bannerCommitChip">Commit-Scope / Tags</span>
+</div>
+
+<!-- Header -->
+<div class="header" id="mainHeader" style="display:none">
+  <div>
+    <h1 id="dashTitle">Delivery Health Dashboard</h1>
+    <div class="subtitle" id="dashSubtitle">OKR 3.2 — Flow Metrics basierend auf Jira-Daten</div>
+  </div>
+  <div class="header-right">
+    <div class="filter-group">
+      <select id="buFilter" onchange="filterTable()">
+        <option value="all">Alle Business Units</option>
+      </select>
+    </div>
+    <span class="badge" id="teamCountBadge">— Teams</span>
+  </div>
+</div>
+
+<!-- Loading state -->
+<div id="stateLoading" class="state-container">
+  <div class="spinner"></div>
+  <div class="state-title">Daten werden geladen…</div>
+  <div class="state-sub">Jira wird abgefragt — bitte warten</div>
+</div>
+
+<!-- Error state -->
+<div id="stateError" class="state-container" style="display:none">
+  <div class="error-box">
+    <strong>Fehler beim Laden der Daten</strong>
+    <p id="errorMsg" style="margin-top:8px;font-size:13px;color:#991b1b"></p>
+    <p style="margin-top:12px;font-size:12px;color:#dc2626">
+      → <a href="/admin" style="color:#dc2626">Admin öffnen</a> um die Jira-Verbindung zu prüfen.
+    </p>
+  </div>
+</div>
+
+<!-- Setup state (no teams) -->
+<div id="stateSetup" class="setup-banner" style="display:none">
+  <h2>Dashboard einrichten</h2>
+  <p>Es wurden noch keine Teams konfiguriert.<br>Füge Teams im Admin-Bereich hinzu, um das Dashboard zu befüllen.</p>
+  <a href="/admin">⚙ Teams konfigurieren</a>
+</div>
+
+<!-- Dashboard content -->
+<div id="dashContent" style="display:none">
+  <div class="kpi-strip" id="kpiStrip"></div>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th class="sortable" onclick="sortTable('name')">Team</th>
+          <th class="sortable" onclick="sortTable('avgTp')">
+            Throughput (Items / Woche)
+            <span class="info-btn">i<span class="tooltip">Wöchentlich abgeschlossene Work Items (Closed Date).\n\nSparkline = 12-Wochen-Verlauf.\nPfeil = letzte 4W vs. vorige 4W.\nØ = 12W-Durchschnitt.</span></span>
+          </th>
+          <th class="sortable" onclick="sortTable('p50')">
+            Cycle Time (P50)
+            <span class="info-btn">i<span class="tooltip">Median-Durchlaufzeit in Tagen.\nBerechnet aus: Closed Date − Activated Date.\n\nTrend = Ø letzte 2W vs. 12W-Baseline.\n↓ grün = schneller, ↑ rot = langsamer.</span></span>
+          </th>
+          <th class="sortable" onclick="sortTable('wipCount')">
+            WIP &amp; Alter
+            <span class="info-btn">i<span class="tooltip">Laufende Work Items = Activated, noch nicht Closed.\n\nAlter = Heute − Activated Date.\nRot = Ø-Alter überschreitet P50-Baseline.</span></span>
+          </th>
+          <th class="sortable" onclick="sortTable('flowRatio')">
+            Flow Balance
+            <span class="info-btn">i<span class="tooltip">Ankunftsrate ÷ Abschlussrate (letzte 4W).\n\n1.0× = perfekt ausgeglichen.\n&lt; 1.1× = Grün (stabil)\n1.1–1.3× = Gelb (WIP steigt leicht)\n&gt; 1.3× = Rot (WIP wächst kritisch)\n\nBasis: Activated Date (Zufluss) vs.\nClosed Date (Abfluss).</span></span>
+          </th>
+        </tr>
+      </thead>
+      <tbody id="teamTableBody"></tbody>
+    </table>
+    <div class="nav-hint">Klicke auf ein Team für das detaillierte Team-Dashboard</div>
+  </div>
+</div>
+
+<!-- Team drill-down overlay -->
+<div id="teamOverlay" class="overlay" onclick="if(event.target===this)closeTeam()">
+  <div class="team-dashboard">
+    <div class="td-header">
+      <div>
+        <span class="back-link" onclick="closeTeam()">← Zurück</span>
+        <h2 id="tdName"></h2>
+        <div class="subtitle" id="tdBU"></div>
+      </div>
+      <button class="close-btn" onclick="closeTeam()">✕</button>
+    </div>
+    <div class="kpi-strip" style="border-bottom:none;padding-bottom:0">
+      <div class="kpi-card">
+        <div class="kpi-label">Avg. Throughput</div>
+        <div class="kpi-value" id="tdAvgTp">—</div>
+        <div class="kpi-sub">Items / Woche (12W)</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">P50 Cycle Time</div>
+        <div class="kpi-value" id="tdP50">—</div>
+        <div class="kpi-sub">Median Durchlaufzeit</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">P85 Cycle Time</div>
+        <div class="kpi-value" id="tdP85">—</div>
+        <div class="kpi-sub">85. Perzentil</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">WIP</div>
+        <div class="kpi-value" id="tdWip">—</div>
+        <div class="kpi-sub" id="tdWipSub">Items in Progress</div>
+      </div>
+    </div>
+    <div class="td-grid">
+      <div class="td-panel">
+        <h3>WIP Aging Chart</h3>
+        <canvas id="chartWipAging"></canvas>
+      </div>
+      <div class="td-panel">
+        <h3>Cycle Time Scatterplot (90 Tage)</h3>
+        <canvas id="chartScatter"></canvas>
+      </div>
+      <div class="td-panel">
+        <h3>Throughput &amp; Ankunftsrate (12 Wochen)</h3>
+        <canvas id="chartRunChart"></canvas>
+      </div>
+      <div class="td-panel">
+        <h3>Flow Balance — Zufluss vs. Abfluss</h3>
+        <canvas id="chartFlowBalance"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── App State ──────────────────────────────────────────────────────────
+let allTeams = [];
+let currentSort = { key: null, asc: true };
+let currentTeamData = null;
+let refreshTimer = null;
+
+// ── Boot ───────────────────────────────────────────────────────────────
+(async function boot() {
+  await loadDashboard();
+})();
+
+async function loadDashboard() {
+  showState('loading');
+  try {
+    const res  = await fetch('/api/data');
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || 'Unbekannter Fehler');
+
+    if (!data.teams || data.teams.length === 0) {
+      showState('setup');
+      return;
+    }
+
+    allTeams = data.teams;
+
+    // Update UI chrome
+    updateIterBadge(data.iteration);
+    updateDataBanner(data.iteration);
+    updateCacheIndicator(data.lastUpdated, data.fromCache);
+
+    const header = document.getElementById('mainHeader');
+    header.style.display = '';
+    document.getElementById('dashTitle').textContent = data.dashboardTitle || 'Delivery Health Dashboard';
+
+    // BU filter
+    const bus = [...new Set(allTeams.map(t => t.bu).filter(Boolean))].sort();
+    const sel = document.getElementById('buFilter');
+    bus.forEach(bu => {
+      const opt = document.createElement('option');
+      opt.value = bu; opt.textContent = bu;
+      sel.appendChild(opt);
+    });
+
+    document.getElementById('teamCountBadge').textContent =
+      `${allTeams.length} / ${data.totalConfiguredTeams || allTeams.length} Teams`;
+
+    showState('content');
+    renderTable('all');
+
+    // Schedule auto-refresh
+    const intervalMs = (data.refreshIntervalMinutes || 15) * 60 * 1000;
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(loadDashboard, intervalMs);
+
+  } catch (err) {
+    document.getElementById('errorMsg').textContent = err.message;
+    showState('error');
+  }
+}
+
+function showState(state) {
+  document.getElementById('stateLoading').style.display  = state === 'loading'  ? '' : 'none';
+  document.getElementById('stateError').style.display    = state === 'error'    ? '' : 'none';
+  document.getElementById('stateSetup').style.display    = state === 'setup'    ? '' : 'none';
+  document.getElementById('dashContent').style.display   = state === 'content'  ? '' : 'none';
+  document.getElementById('mainHeader').style.display    = state === 'content'  ? '' : 'none';
+}
+
+// ── Iteration chrome ───────────────────────────────────────────────────
+function updateIterBadge(iter) {
+  const el = document.getElementById('iterBadge');
+  const labels = { 1: 'Iteration 1 — Activated & Closed', 2: 'Iteration 2 — + Work Item Types', 3: 'Iteration 3 — Full Data' };
+  el.textContent = labels[iter] || `Iteration ${iter}`;
+  el.className   = `iter-badge iter-${iter}`;
+}
+
+function updateDataBanner(iter) {
+  const typeChip   = document.getElementById('bannerTypeChip');
+  const commitChip = document.getElementById('bannerCommitChip');
+  if (iter >= 2) { typeChip.classList.remove('chip-miss');   typeChip.classList.add('chip-avail');   typeChip.textContent   = '✓ Work Item Types'; }
+  if (iter >= 3) { commitChip.classList.remove('chip-miss'); commitChip.classList.add('chip-avail'); commitChip.textContent = '✓ Commit-Scope Tags'; }
+}
+
+function updateCacheIndicator(lastUpdated, fromCache) {
+  const label = document.getElementById('cacheLabel');
+  const dot   = document.getElementById('cacheDot');
+  if (!lastUpdated) { label.textContent = '—'; return; }
+  const age = Math.round((Date.now() - new Date(lastUpdated).getTime()) / 60000);
+  label.textContent = age < 2 ? 'Soeben aktualisiert' : `Aktualisiert vor ${age} Min.`;
+  dot.className = `cache-dot${fromCache ? ' stale' : ''}`;
+}
+
+// ── Table ──────────────────────────────────────────────────────────────
+function renderTable(buFilter) {
+  const tbody = document.getElementById('teamTableBody');
+  let rows = buFilter === 'all' ? [...allTeams] : allTeams.filter(t => t.bu === buFilter);
+
+  if (currentSort.key) {
+    rows.sort((a, b) => {
+      let va = a[currentSort.key], vb = b[currentSort.key];
+      if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+      va = va ?? 0; vb = vb ?? 0;
+      return currentSort.asc ? (va < vb ? -1 : va > vb ? 1 : 0) : (va > vb ? -1 : va < vb ? 1 : 0);
+    });
+  }
+
+  renderKpis(rows);
+  tbody.innerHTML = '';
+
+  rows.forEach((t, idx) => {
+    if (t.error) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><div class="team-name">${esc(t.name)}</div><div class="team-bu">${esc(t.bu || '')}</div></td>
+        <td colspan="4" style="color:#dc2626;font-size:13px">⚠ Fehler: ${esc(t.error)}</td>
+      `;
+      tbody.appendChild(tr);
+      return;
+    }
+    const tr = document.createElement('tr');
+    tr.onclick = () => openTeam(t);
+    tr.innerHTML = `
+      <td>
+        <div class="team-name">${esc(t.name)}</div>
+        <div class="team-bu">${esc(t.bu || '')} · Jira Cloud</div>
+      </td>
+      <td>
+        <div class="sparkline-container">
+          <canvas class="sparkline" id="spark-${idx}" width="120" height="32"></canvas>
+          ${trendBadge(t.trend)}
+          <span class="avg-label">Ø ${num(t.avgTp)}/W</span>
+        </div>
+      </td>
+      <td>${cycleTimeCell(t)}</td>
+      <td>${wipCell(t)}</td>
+      <td>${flowCell(t)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  requestAnimationFrame(() => {
+    rows.forEach((t, idx) => {
+      if (!t.error) drawSparkline(`spark-${idx}`, t.tp || []);
+    });
+  });
+}
+
+function filterTable() {
+  renderTable(document.getElementById('buFilter').value);
+}
+
+function sortTable(key) {
+  if (currentSort.key === key) currentSort.asc = !currentSort.asc;
+  else { currentSort.key = key; currentSort.asc = true; }
+  filterTable();
+}
+
+// ── KPI Strip ──────────────────────────────────────────────────────────
+function renderKpis(teams) {
+  const strip = document.getElementById('kpiStrip');
+  if (!teams.length) { strip.innerHTML = ''; return; }
+  const valid = teams.filter(t => !t.error);
+  if (!valid.length) { strip.innerHTML = ''; return; }
+
+  const avgTp    = avg(valid.map(t => t.avgTp));
+  const last2avg = avg(valid.map(t => avg((t.tp || []).slice(-2))));
+  const base2avg = avg(valid.map(t => avg(t.tp || [])));
+  const tpDelta  = base2avg > 0 ? Math.round((last2avg - base2avg) / base2avg * 100) : 0;
+  const tpColor  = tpDelta >= 0 ? 'var(--green)' : 'var(--red)';
+  const tpSign   = tpDelta > 0 ? '+' : '';
+
+  const avgP50 = avg(valid.map(t => t.p50 || 0));
+  const avgP50r = avg(valid.map(t => t.p50recent || t.p50 || 0));
+  const ctDelta = +(avgP50r - avgP50).toFixed(1);
+  const ctColor = ctDelta <= 0 ? 'var(--green)' : 'var(--red)';
+  const ctSign  = ctDelta > 0 ? '+' : '';
+
+  const totalWip  = valid.reduce((s, t) => s + (t.wipCount || 0), 0);
+  const avgWipAge = avg(valid.map(t => t.wipAvgAge || 0));
+  const avgP50All = avg(valid.map(t => t.p50 || 1));
+  const wipRatio  = avgWipAge / avgP50All;
+  const wipColor  = wipRatio < 0.9 ? 'var(--green)' : wipRatio < 1.3 ? 'var(--yellow)' : 'var(--red)';
+
+  const avgFlow     = avg(valid.map(t => t.flowRatio || 1));
+  const flowColor   = avgFlow <= 1.1 ? 'var(--green)' : avgFlow <= 1.3 ? 'var(--yellow)' : 'var(--red)';
+  const flowLabel   = avgFlow <= 1.1 ? 'Ausgeglichen' : avgFlow <= 1.3 ? 'Steigt' : 'WIP wächst';
+  const critTeams   = valid.filter(t => (t.flowRatio || 1) > 1.3).length;
+
+  strip.innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">Throughput Trend <span class="info-btn">i<span class="tooltip">Portfolio-Throughput-Trend.\nØ letzte 2W vs. Ø 12W-Baseline.\nBasis: Closed Date.</span></span></div>
+      <div class="kpi-value" style="color:${tpColor}">${tpSign}${tpDelta}%</div>
+      <div class="kpi-sub">Ø ${num(avgTp)} Items/W</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Cycle Time P50 <span class="info-btn">i<span class="tooltip">Portfolio-weite Median-Durchlaufzeit.\nClosed Date − Activated Date.\nGrün = schneller, Rot = langsamer.</span></span></div>
+      <div class="kpi-value" style="color:${ctColor}">${ctSign}${ctDelta}d</div>
+      <div class="kpi-sub">Ø Baseline ${num(avgP50)}d</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Gesamt WIP <span class="info-btn">i<span class="tooltip">Summe aller aktiven Work Items.\nAktiviert aber noch nicht Closed.</span></span></div>
+      <div class="kpi-value" style="color:${wipColor}">${totalWip}</div>
+      <div class="kpi-sub">Ø Alter ${num(avgWipAge)}d · ${valid.length} Teams</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Flow Balance <span class="info-btn">i<span class="tooltip">Ankunftsrate ÷ Abschlussrate (letzte 4W).\n1.0 = ausgeglichen · &gt;1.3 = WIP wächst.</span></span></div>
+      <div class="kpi-value" style="color:${flowColor}">${avgFlow.toFixed(2)}×</div>
+      <div class="kpi-sub">${flowLabel} · ${critTeams} kritisch</div>
+    </div>
+  `;
+}
+
+// ── Cell renderers ─────────────────────────────────────────────────────
+function trendBadge(trend) {
+  if (trend === 'up')   return '<span class="trend-badge trend-up">↑</span>';
+  if (trend === 'down') return '<span class="trend-badge trend-down">↓</span>';
+  return '<span class="trend-badge trend-flat">→</span>';
+}
+
+function cycleTimeCell(t) {
+  const p50r  = t.p50recent ?? t.p50 ?? 0;
+  const delta = +(p50r - (t.p50 || 0)).toFixed(1);
+  const sign  = delta > 0 ? '+' : '';
+  const bg    = delta < -0.5 ? 'var(--green-bg)' : delta > 0.5 ? 'var(--red-bg)' : 'var(--yellow-bg)';
+  const fg    = delta < -0.5 ? 'var(--green)'    : delta > 0.5 ? 'var(--red)'    : 'var(--yellow)';
+  const arrow = delta < -0.5 ? '↓'               : delta > 0.5 ? '↑'             : '→';
+  return `<div class="flow-cell">
+    <div style="font-size:20px;font-weight:700;color:var(--gray-700);min-width:44px">${num(t.p50)}d</div>
+    <div>
+      <div style="font-size:11px;color:var(--gray-400);margin-bottom:2px">P50 Baseline</div>
+      <span style="display:inline-flex;align-items:center;gap:2px;font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px;background:${bg};color:${fg}">${arrow} ${sign}${delta}d</span>
+      <div style="font-size:10px;color:var(--gray-400);margin-top:2px">2W vs. 12W</div>
+    </div>
+  </div>`;
+}
+
+function wipCell(t) {
+  const ratio      = (t.wipAvgAge || 0) / Math.max(t.p50 || 1, 0.1);
+  const ageColor   = ratio < 0.9 ? 'var(--green)' : ratio < 1.3 ? 'var(--yellow)' : 'var(--red)';
+  const ageLabel   = ratio < 0.9 ? '✓ Frisch'     : ratio < 1.3 ? '~ Normal'      : '⚠ Aged';
+  return `<div>
+    <div style="display:flex;align-items:baseline;gap:6px">
+      <span style="font-size:22px;font-weight:700;color:var(--gray-700)">${t.wipCount ?? 0}</span>
+      <span style="font-size:12px;color:var(--gray-400)">Items in Progress</span>
+    </div>
+    <div style="margin-top:4px">
+      <span style="font-size:12px;font-weight:600;color:${ageColor}">${ageLabel}</span>
+      <span style="font-size:11px;color:var(--gray-400);margin-left:5px">Ø ${num(t.wipAvgAge)}d</span>
+    </div>
+    <div style="font-size:10px;color:var(--gray-400);margin-top:2px">P50 Baseline: ${num(t.p50)}d</div>
+  </div>`;
+}
+
+function flowCell(t) {
+  const r     = t.flowRatio ?? 1;
+  const cls   = r <= 1.1 ? 'flow-green' : r <= 1.3 ? 'flow-yellow' : 'flow-red';
+  const label = r <= 1.1 ? 'Ausgeglichen' : r <= 1.3 ? 'Steigt leicht' : 'WIP wächst ⚠';
+  const arr   = ((t.activated4w ?? 0) / 4).toFixed(1);
+  const dep   = ((t.closed4w    ?? 0) / 4).toFixed(1);
+  return `<div class="flow-cell">
+    <div class="flow-ratio ${cls}">${r.toFixed(2)}×</div>
+    <div class="flow-detail">
+      <div style="font-weight:600;font-size:12px;color:var(--gray-700)">${label}</div>
+      <div style="font-size:11px;color:var(--gray-400)">↑ ${arr}/W ankommen</div>
+      <div style="font-size:11px;color:var(--gray-400)">↓ ${dep}/W abgeschlossen</div>
+    </div>
+  </div>`;
+}
+
+// ── Sparkline ──────────────────────────────────────────────────────────
+function drawSparkline(id, data) {
+  const canvas = document.getElementById(id);
+  if (!canvas || !data.length) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const max = Math.max(...data, 1) + 1;
+  const min = Math.max(0, Math.min(...data) - 1);
+  const stepX = w / Math.max(data.length - 1, 1);
+  ctx.beginPath(); ctx.moveTo(0, h);
+  data.forEach((v, i) => ctx.lineTo(i * stepX, h - ((v - min) / (max - min)) * (h - 4) - 2));
+  ctx.lineTo(w, h); ctx.closePath();
+  ctx.fillStyle = 'rgba(59,130,246,0.08)'; ctx.fill();
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const y = h - ((v - min) / (max - min)) * (h - 4) - 2;
+    i === 0 ? ctx.moveTo(0, y) : ctx.lineTo(i * stepX, y);
+  });
+  ctx.strokeStyle = 'rgba(59,130,246,0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
+  const lastY = h - ((data[data.length - 1] - min) / (max - min)) * (h - 4) - 2;
+  ctx.beginPath(); ctx.arc(w, lastY, 3, 0, Math.PI * 2);
+  ctx.fillStyle = '#3b82f6'; ctx.fill();
+}
+
+// ── Team Overlay ──────────────────────────────────────────────────────
+function openTeam(t) {
+  currentTeamData = t;
+  document.getElementById('tdName').textContent = t.name;
+  document.getElementById('tdBU').textContent   = `${t.bu || ''}  · Jira Cloud`;
+  document.getElementById('tdAvgTp').textContent = num(t.avgTp) + '/W';
+  document.getElementById('tdP50').textContent   = num(t.p50) + 'd';
+  document.getElementById('tdP85').textContent   = num(t.p85) + 'd';
+  document.getElementById('tdWip').textContent   = t.wipCount ?? 0;
+  document.getElementById('tdWipSub').textContent = `Ø Alter ${num(t.wipAvgAge)}d`;
+  document.getElementById('teamOverlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+  requestAnimationFrame(() => {
+    drawRunChart(t);
+    drawFlowBalance(t);
+    drawScatter(t);
+    drawWipAging(t);
+  });
+}
+
+function closeTeam() {
+  document.getElementById('teamOverlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// ── Charts (Team Overlay) ──────────────────────────────────────────────
+function canvasCtx(id) {
+  const canvas = document.getElementById(id);
+  const dpr  = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width  = rect.width  * dpr;
+  canvas.height = rect.height * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return { ctx, w: rect.width, h: rect.height };
+}
+
+function drawRunChart(t) {
+  const { ctx, w, h } = canvasCtx('chartRunChart');
+  const data    = t.tp || [];
+  const arrival = t.arrivalRate || [];
+  const max     = Math.max(...data, ...arrival, 1) + 2;
+  const barW    = (w - 60) / Math.max(data.length, 1);
+  const avgV    = t.avgTp || 0;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, 0, w, h);
+
+  const step = Math.ceil(max / 5);
+  for (let i = 0; i <= max; i += step) {
+    const y = h - 30 - (i / max) * (h - 50);
+    ctx.fillStyle = '#9ca3af'; ctx.font = '10px Inter,sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(i, 30, y + 3);
+    ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(35, y); ctx.lineTo(w, y); ctx.stroke();
+  }
+  ctx.textAlign = 'left';
+
+  data.forEach((v, i) => {
+    const bh = (v / max) * (h - 50);
+    const x  = 40 + i * barW;
+    const y  = h - 30 - bh;
+    ctx.fillStyle = 'rgba(59,130,246,0.55)';
+    ctx.beginPath(); ctx.roundRect(x + 3, y, barW * 0.5, bh, [3, 3, 0, 0]); ctx.fill();
+    ctx.fillStyle = '#9ca3af'; ctx.font = '9px Inter,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('W' + (i + 1), x + barW / 2, h - 16);
+    ctx.textAlign = 'left';
+  });
+
+  const avgY = h - 30 - (avgV / max) * (h - 50);
+  ctx.setLineDash([4, 3]); ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(40, avgY); ctx.lineTo(w - 10, avgY); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#ef4444'; ctx.font = 'bold 10px Inter,sans-serif';
+  ctx.fillText('Ø ' + avgV, w - 45, avgY - 5);
+
+  if (arrival.length) {
+    ctx.beginPath();
+    arrival.forEach((v, i) => {
+      const x = 40 + i * barW + barW / 2;
+      const y = h - 30 - (v / max) * (h - 50);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = '#f97316'; ctx.lineWidth = 2; ctx.stroke();
+    arrival.forEach((v, i) => {
+      const x = 40 + i * barW + barW / 2;
+      const y = h - 30 - (v / max) * (h - 50);
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = '#f97316'; ctx.fill();
+    });
+  }
+
+  ctx.fillStyle = '#3b82f6'; ctx.font = 'bold 10px Inter,sans-serif';
+  ctx.fillText('■ Throughput', 40, h - 3);
+  ctx.fillStyle = '#f97316';
+  ctx.fillText('— Ankunftsrate', 140, h - 3);
+}
+
+function drawFlowBalance(t) {
+  const { ctx, w, h } = canvasCtx('chartFlowBalance');
+  const tp  = t.tp  || [];
+  const arr = t.arrivalRate || [];
+  const weeks = tp.length;
+  if (weeks === 0) return;
+
+  let cum = 0;
+  const netFlow = tp.map((v, i) => { cum += (arr[i] || 0) - v; return cum; });
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, 0, w, h);
+
+  const barAreaTop = 28, barAreaH = h - 62;
+  const barW = (w - 70) / weeks;
+  const maxV = Math.max(...arr, ...tp, 1);
+  const midY = barAreaTop + barAreaH / 2;
+
+  ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(50, midY); ctx.lineTo(w - 10, midY); ctx.stroke();
+
+  for (let i = 0; i < weeks; i++) {
+    const x = 52 + i * barW;
+    const bw = barW * 0.38;
+    const arrH = ((arr[i] || 0) / maxV) * (barAreaH / 2 - 10);
+    const tpH  = (tp[i] / maxV) * (barAreaH / 2 - 10);
+
+    ctx.fillStyle = 'rgba(249,115,22,0.6)';
+    ctx.beginPath(); ctx.roundRect(x + 2, midY - arrH, bw, arrH, [3, 3, 0, 0]); ctx.fill();
+    ctx.fillStyle = 'rgba(59,130,246,0.6)';
+    ctx.beginPath(); ctx.roundRect(x + 2 + bw + 1, midY, bw, tpH, [0, 0, 3, 3]); ctx.fill();
+    ctx.fillStyle = '#9ca3af'; ctx.font = '9px Inter,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('W' + (i + 1), x + barW / 2, h - 10);
+    ctx.textAlign = 'left';
+  }
+
+  const maxCum = Math.max(Math.abs(Math.min(...netFlow)), Math.abs(Math.max(...netFlow)), 1);
+  ctx.beginPath();
+  netFlow.forEach((v, i) => {
+    const x = 52 + i * barW + barW / 2;
+    const y = midY - (v / maxCum) * (barAreaH / 2 - 15);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = '#7c3aed'; ctx.lineWidth = 2.5; ctx.stroke();
+
+  netFlow.forEach((v, i) => {
+    const x = 52 + i * barW + barW / 2;
+    const y = midY - (v / maxCum) * (barAreaH / 2 - 15);
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = v > 0 ? '#ef4444' : v < 0 ? '#22c55e' : '#7c3aed';
+    ctx.fill(); ctx.strokeStyle = 'white'; ctx.lineWidth = 1.5; ctx.stroke();
+  });
+
+  ctx.fillStyle = '#f97316'; ctx.font = 'bold 10px Inter,sans-serif';
+  ctx.fillText('▲ Ankunft', 52, barAreaTop - 8);
+  ctx.fillStyle = '#3b82f6'; ctx.fillText('▼ Throughput', 120, barAreaTop - 8);
+  ctx.fillStyle = '#7c3aed'; ctx.fillText('— Net WIP (kum.)', w - 130, barAreaTop - 8);
+}
+
+function drawScatter(t) {
+  const { ctx, w, h } = canvasCtx('chartScatter');
+  const items  = t.scatterData || [];
+  const p50    = t.p50    || 5;
+  const p85    = t.p85    || p50 * 1.9;
+  const p95    = +(p85 * 1.3).toFixed(1);
+  const maxCT  = Math.ceil(p95 * 1.3);
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, 0, w, h);
+
+  const drawPLine = (val, label, color) => {
+    const y = h - 30 - (val / maxCT) * (h - 50);
+    if (y < 10 || val <= 0) return;
+    ctx.setLineDash([5, 3]); ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(40, y); ctx.lineTo(w - 10, y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color; ctx.font = 'bold 10px Inter,sans-serif';
+    ctx.fillText(`${label} (${val.toFixed(1)}d)`, w - 100, y - 4);
+  };
+
+  drawPLine(p50, 'P50', '#22c55e');
+  drawPLine(p85, 'P85', '#eab308');
+  drawPLine(p95, 'P95', '#ef4444');
+
+  items.forEach(item => {
+    const x = 40 + (item.x / 90) * (w - 60);
+    const y = h - 30 - (Math.min(item.y, maxCT) / maxCT) * (h - 50);
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
+    const c = item.y > p85 ? 'rgba(239,68,68,0.7)' : item.y > p50 ? 'rgba(234,179,8,0.5)' : 'rgba(34,197,94,0.5)';
+    ctx.fillStyle = c; ctx.fill();
+  });
+
+  ctx.fillStyle = '#9ca3af'; ctx.font = '10px Inter,sans-serif';
+  ctx.fillText('Cycle Time (Tage)', 5, 12);
+  ctx.fillText('90d ago', 40, h - 16);
+  ctx.textAlign = 'right'; ctx.fillText('heute', w - 10, h - 16); ctx.textAlign = 'left';
+}
+
+function drawWipAging(t) {
+  const { ctx, w, h } = canvasCtx('chartWipAging');
+  const items  = t.wipAgingData || [];
+  const p50    = t.p50   || 5;
+  const p85    = t.p85   || p50 * 1.9;
+  const maxAge = Math.max(p85 * 1.5, ...items.map(i => i.age), 1);
+  const vis    = items.slice(0, 12);
+  const barH   = Math.min(26, (h - 50) / Math.max(vis.length, 1));
+  const startY = 20;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, 0, w, h);
+
+  const drawVLine = (val, label, color) => {
+    const x = 80 + (val / maxAge) * (w - 100);
+    ctx.setLineDash([4, 3]); ctx.strokeStyle = color; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, 8); ctx.lineTo(x, startY + vis.length * (barH + 4)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = color; ctx.font = 'bold 10px Inter,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(label, x, 8); ctx.textAlign = 'left';
+  };
+
+  drawVLine(p50, 'P50', '#22c55e');
+  drawVLine(p85, 'P85', '#eab308');
+
+  if (vis.length === 0) {
+    ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center'; ctx.font = '13px Inter,sans-serif';
+    ctx.fillText('Kein aktives WIP', w / 2, h / 2);
+    ctx.textAlign = 'left';
+    return;
+  }
+
+  vis.forEach((item, i) => {
+    const y  = startY + i * (barH + 4);
+    const bw = (item.age / maxAge) * (w - 100);
+    const c  = item.age > p85 ? 'rgba(239,68,68,0.6)' : item.age > p50 ? 'rgba(234,179,8,0.4)' : 'rgba(59,130,246,0.4)';
+    ctx.fillStyle = '#374151'; ctx.font = '11px Inter,sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(item.key, 75, y + barH / 2 + 4);
+    ctx.textAlign = 'left';
+    ctx.fillStyle = c;
+    ctx.beginPath(); ctx.roundRect(80, y, bw, barH, 4); ctx.fill();
+    ctx.fillStyle = '#374151'; ctx.font = 'bold 11px Inter,sans-serif';
+    ctx.fillText(item.age + 'd', 80 + bw + 6, y + barH / 2 + 4);
+    if (item.age > p85) { ctx.fillStyle = '#ef4444'; ctx.fillText('⚠', 80 + bw + 32, y + barH / 2 + 4); }
+  });
+
+  ctx.fillStyle = '#9ca3af'; ctx.font = '10px Inter,sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Alter in Tagen →', w / 2, h - 8);
+  ctx.textAlign = 'left';
+}
+
+// ── Utilities ──────────────────────────────────────────────────────────
+function avg(arr) {
+  if (!arr || arr.length === 0) return 0;
+  return arr.reduce((s, v) => s + (v || 0), 0) / arr.length;
+}
+function num(v) { return v != null ? (Number.isInteger(v) ? v : v.toFixed(1)) : '—'; }
+function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── Global event listeners ─────────────────────────────────────────────
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeTeam(); });
+document.addEventListener('mouseover', e => {
+  const btn = e.target.closest('.info-btn');
+  if (!btn) return;
+  const tip = btn.querySelector('.tooltip');
+  if (!tip) return;
+  const rect = btn.getBoundingClientRect();
+  let left = rect.left + rect.width / 2 - 120;
+  left = Math.max(8, Math.min(left, window.innerWidth - 248));
+  tip.style.left      = left + 'px';
+  tip.style.top       = (rect.top - 8) + 'px';
+  tip.style.transform = 'translateY(-100%)';
+  tip.style.display   = 'block';
+});
+document.addEventListener('mouseout', e => {
+  if (e.target.closest('.info-btn')) {
+    const tip = e.target.closest('.info-btn')?.querySelector('.tooltip');
+    if (tip) tip.style.display = '';
+  }
+});
+</script>
+</body>
+</html>

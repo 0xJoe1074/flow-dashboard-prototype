@@ -1,0 +1,17 @@
+{
+  "name": "okr32-delivery-dashboard",
+  "version": "1.0.0",
+  "description": "OKR 3.2 Delivery Health Dashboard — Jira-backed flow metrics",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "dotenv": "^16.3.1"
+  }
+}
