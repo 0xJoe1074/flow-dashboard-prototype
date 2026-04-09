@@ -1,5 +1,6 @@
 node_modules/
 data/.token
 data/cache.json
+../.env
 .env
 *.log
