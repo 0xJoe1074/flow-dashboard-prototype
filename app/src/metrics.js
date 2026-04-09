@@ -120,7 +120,7 @@ function calculateTeamMetrics(issues, team, config) {
 
     // WIP
     wipCount: wipItems.length,
-    wipAvgAge,
+    wipAvgAge: avgWipAge,
 
     // Flow
     flowRatio,

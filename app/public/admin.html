@@ -274,7 +274,11 @@
                 <option value="">— Global verwenden —</option>
               </select>
             </div>
+            <div class="field" style="align-self:flex-end">
+              <button class="btn btn-secondary" type="button" id="reloadTeamStatusesBtn" style="height:36px;padding:0 12px;font-size:12px;">↺ Status neu laden</button>
+            </div>
           </div>
+          <div style="font-size:11px;color:var(--gray-400);margin-top:2px" id="teamStatusHint"></div>
         </div>
         <div class="btn-row">
           <button class="btn btn-primary" id="saveTeamBtn">Team speichern</button>
@@ -605,7 +609,7 @@ function renderTeams() {
           <button class="btn btn-danger btn-sm" onclick="deleteTeam('${t.id}')">Löschen</button>
         </div>
       `;
-      list.insertBefore(div, document.getElementById('teamForm'));
+      list.appendChild(div);
     });
   }
 }
@@ -617,8 +621,9 @@ document.getElementById('addTeamBtn').addEventListener('click', () => {
   document.getElementById('teamName').value = '';
   document.getElementById('teamBU').value   = '';
   document.getElementById('teamJQL').value  = '';
-  document.getElementById('teamActiveStatus').value = '';
-  document.getElementById('teamDoneStatus').value   = '';
+  document.getElementById('teamActiveStatus').innerHTML = '<option value="">— Global verwenden —</option>';
+  document.getElementById('teamDoneStatus').innerHTML   = '<option value="">— Global verwenden —</option>';
+  document.getElementById('teamStatusHint').textContent = 'JQL eingeben und "↺ Status neu laden" klicken.';
   document.getElementById('jqlPreviewResult').textContent = '';
   showTeamForm();
   document.getElementById('teamName').focus();
@@ -633,10 +638,54 @@ function startEditTeam(id) {
   document.getElementById('teamName').value = t.name;
   document.getElementById('teamBU').value   = t.businessUnit || '';
   document.getElementById('teamJQL').value  = t.jql;
-  setSelectValue('teamActiveStatus', t.activeStatus  || '');
-  setSelectValue('teamDoneStatus',   t.doneStatus    || '');
+  setSelectValue('teamActiveStatus', t.activeStatus || '');
+  setSelectValue('teamDoneStatus',   t.doneStatus   || '');
   document.getElementById('jqlPreviewResult').textContent = '';
   showTeamForm();
+  // Auto-load statuses used by this team's JQL
+  if (t.jql) loadStatusesForTeam(t.jql, t.activeStatus, t.doneStatus);
+}
+
+async function loadStatusesForTeam(jql, currentActive, currentDone) {
+  const hint = document.getElementById('teamStatusHint');
+  hint.textContent = 'Status-Werte werden geladen…';
+  // Snapshot what the user has already selected (may have changed while we were loading)
+  const userActive = document.getElementById('teamActiveStatus').value;
+  const userDone   = document.getElementById('teamDoneStatus').value;
+  try {
+    const res  = await fetch('/api/admin/jira/statuses-for-jql', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jql })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    // Re-snapshot AFTER await — use whatever the user has selected NOW, fall back to saved value
+    const activeAfter = document.getElementById('teamActiveStatus').value;
+    const doneAfter   = document.getElementById('teamDoneStatus').value;
+
+    ['teamActiveStatus', 'teamDoneStatus'].forEach(id => {
+      const sel = document.getElementById(id);
+      // Prefer what the user has already selected; fall back to saved config value
+      const cur = id === 'teamActiveStatus'
+        ? (activeAfter || currentActive || '')
+        : (doneAfter   || currentDone  || '');
+      sel.innerHTML = '<option value="">— Global verwenden —</option>';
+      data.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.name;
+        opt.textContent = s.name;
+        if (s.category === 'In Progress') opt.style.fontWeight = '700';
+        if (s.category === 'Done')        opt.style.color = '#15803d';
+        sel.appendChild(opt);
+      });
+      setSelectValue(id, cur);
+    });
+
+    hint.textContent = `${data.length} Status-Werte aus Jira geladen.`;
+  } catch (e) {
+    hint.textContent = 'Konnte Status-Werte nicht laden: ' + e.message;
+  }
 }
 
 function showTeamForm() {
@@ -652,6 +701,12 @@ function hideTeamForm() {
 }
 
 document.getElementById('cancelTeamBtn').addEventListener('click', hideTeamForm);
+
+document.getElementById('reloadTeamStatusesBtn').addEventListener('click', () => {
+  const jql = document.getElementById('teamJQL').value.trim();
+  if (!jql) { showToast('Bitte zuerst einen JQL-Filter eingeben.', 'err'); return; }
+  loadStatusesForTeam(jql, document.getElementById('teamActiveStatus').value, document.getElementById('teamDoneStatus').value);
+});
 
 document.getElementById('saveTeamBtn').addEventListener('click', () => {
   const name = document.getElementById('teamName').value.trim();
@@ -672,7 +727,12 @@ document.getElementById('saveTeamBtn').addEventListener('click', () => {
 
   renderTeams();
   hideTeamForm();
-  showToast(`Team "${name}" ${editingTeamId ? 'aktualisiert' : 'hinzugefügt'}.`, 'ok');
+  // Auto-save to server immediately so changes are not lost
+  saveConfig(true).then(() => {
+    showToast(`Team "${name}" ${editingTeamId ? 'aktualisiert' : 'hinzugefügt'} und gespeichert.`, 'ok');
+  }).catch(e => {
+    showToast(`Team gespeichert (lokal), aber Server-Fehler: ${e.message}`, 'err');
+  });
 });
 
 function deleteTeam(id) {
@@ -776,14 +836,10 @@ document.querySelectorAll('input[name="iteration"]').forEach(radio => {
 });
 
 // ── Save All ───────────────────────────────────────────────────────────
-document.getElementById('saveAllBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('saveAllBtn');
-  btn.disabled = true; btn.textContent = 'Speichere…';
-
+async function saveConfig(silent = false) {
   const iteration = parseInt(
     document.querySelector('input[name="iteration"]:not([disabled]):checked')?.value || 1
   );
-
   const payload = {
     jira: {
       baseUrl: document.getElementById('jiraBaseUrl').value.trim(),
@@ -798,16 +854,21 @@ document.getElementById('saveAllBtn').addEventListener('click', async () => {
     },
     teams
   };
+  const res  = await fetch('/api/admin/config', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error);
+  config = payload;
+  if (!silent) showToast('Einstellungen gespeichert.', 'ok');
+}
 
+document.getElementById('saveAllBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('saveAllBtn');
+  btn.disabled = true; btn.textContent = 'Speichere…';
   try {
-    const res  = await fetch('/api/admin/config', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    showToast('Einstellungen gespeichert.', 'ok');
-    config = payload;
+    await saveConfig();
   } catch (e) {
     showToast('Fehler: ' + e.message, 'err');
   }

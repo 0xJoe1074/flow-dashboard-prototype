@@ -6,7 +6,7 @@ const path    = require('path');
 const crypto  = require('crypto');
 
 const { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv } = require('./src/config');
-const { testConnection, getStatuses, getBoards, fetchTeamIssues, previewJql } = require('./src/jira');
+const { testConnection, getStatuses, getStatusesForJql, getBoards, fetchTeamIssues, previewJql } = require('./src/jira');
 const { calculateTeamMetrics } = require('./src/metrics');
 const { getCache, setCache, clearCache, getCacheStatus } = require('./src/cache');
 
@@ -136,10 +136,34 @@ app.get('/api/admin/jira/boards', async (_req, res) => {
 
 app.get('/api/admin/jira/statuses', async (_req, res) => {
   try {
+    const config   = readConfig();
+    const token    = getJiraToken();
+    if (!token) return res.status(400).json({ error: 'Kein API Token konfiguriert.' });
+    const rawStatuses = await getStatuses(config.jira, token);
+    // Sort: In Progress first, Done second, To Do third, rest alphabetically
+    const CATEGORY_ORDER = { 'In Progress': 0, 'Done': 1, 'To Do': 2 };
+    const sorted = rawStatuses.sort((a, b) => {
+      const ca = CATEGORY_ORDER[a.category] ?? 9;
+      const cb = CATEGORY_ORDER[b.category] ?? 9;
+      return ca !== cb ? ca - cb : a.name.localeCompare(b.name);
+    });
+    res.json(sorted);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Returns only statuses actually used by a given JQL (for team status override)
+app.post('/api/admin/jira/statuses-for-jql', async (req, res) => {
+  try {
+    const { jql } = req.body;
+    if (!jql || typeof jql !== 'string' || !jql.trim()) {
+      return res.status(400).json({ error: 'JQL fehlt.' });
+    }
     const config = readConfig();
     const token  = getJiraToken();
     if (!token) return res.status(400).json({ error: 'Kein API Token konfiguriert.' });
-    const statuses = await getStatuses(config.jira, token);
+    const statuses = await getStatusesForJql(jql.trim(), config.jira, token);
     res.json(statuses);
   } catch (err) {
     res.status(500).json({ error: err.message });
