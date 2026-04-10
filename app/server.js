@@ -250,7 +250,8 @@ async function buildDashboardData(config) {
     lastUpdated: new Date().toISOString(),
     iteration: config.dashboard?.iteration || 1,
     refreshIntervalMinutes: config.dashboard?.refreshIntervalMinutes || 15,
-    totalConfiguredTeams: teams.length
+    totalConfiguredTeams: teams.length,
+    jiraBaseUrl: config.jira?.baseUrl || ''
   };
 }
 

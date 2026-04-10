@@ -17,11 +17,6 @@ function calculateTeamMetrics(issues, team, config) {
     let activatedAt = null;
     let closedAt    = null;
     const type = issue.fields?.issuetype?.name || 'Unknown';
-    const currentStatus = (issue.fields?.status?.name || '').toLowerCase();
-    // Jira status category is the authoritative "is this in progress?" signal.
-    // Category "In Progress" covers all intermediate states (In Review, Testing, Blocked, etc.)
-    // This is more reliable than matching a single configured status name.
-    const currentCategory = (issue.fields?.status?.statusCategory?.name || '').toLowerCase();
 
     for (const history of histories) {
       for (const item of history.items || []) {
@@ -37,18 +32,16 @@ function calculateTeamMetrics(issues, team, config) {
       }
     }
 
-    // WIP = currently in Jira's "In Progress" status category
-    // (covers all intermediate states: In Review, Testing, Blocked, In Dev, etc.)
-    const isWip = currentCategory === 'in progress';
-
-    // If item is currently active but has no activatedAt from changelog,
-    // fall back to using item creation date so cycle time / aging still works.
-    const effectiveActivatedAt = isWip && !activatedAt ? new Date(issue.fields?.created || now) : activatedAt;
+    // WIP = Vacanti Option C: item must have passed through activeStatus (activatedAt set)
+    // AND not yet reached doneStatus (closedAt not set).
+    // This correctly excludes items like "CLARIFICATION IN PROGRESS" that never
+    // went through the configured activeStatus (e.g. "DEV Development").
+    const isWip = !!(activatedAt && !closedAt);
 
     return {
       key: issue.key,
       type,
-      activatedAt: effectiveActivatedAt,
+      activatedAt,
       closedAt,
       isWip
     };
@@ -106,6 +99,7 @@ function calculateTeamMetrics(issues, team, config) {
   const scatterData = closedItems
     .filter(i => i.closedAt >= ninetyDaysAgo)
     .map(i => ({
+      key: i.key,
       x: Math.round((now - i.closedAt) / MS_PER_DAY),
       y: round1((i.closedAt - i.activatedAt) / MS_PER_DAY + 1),
       type: i.type

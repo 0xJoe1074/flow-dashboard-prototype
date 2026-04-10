@@ -81,13 +81,22 @@
   .nav-hint { text-align: center; padding: 10px; font-size: 12px; color: var(--gray-400); }
 
   /* Sparkline */
-  .sparkline-container { display: flex; align-items: center; gap: 10px; }
+  .sparkline-container { display: flex; align-items: center; gap: 8px; }
   canvas.sparkline { height: 32px; width: 120px; }
   .trend-badge { font-size: 13px; font-weight: 700; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   .trend-up   { background: var(--green-bg); color: var(--green); }
   .trend-down { background: var(--red-bg);   color: var(--red);   }
   .trend-flat { background: var(--yellow-bg);color: var(--yellow);}
   .avg-label  { font-size: 12px; color: var(--gray-500); }
+
+  /* Aging + Scatter tooltips */
+  #wipAgingTooltip, #scatterTooltip {
+    display: none; position: absolute; pointer-events: none;
+    background: rgba(17,24,39,0.88); color: #f9fafb;
+    font-size: 11px; font-weight: 600; padding: 4px 8px;
+    border-radius: 6px; white-space: nowrap; z-index: 10;
+    transform: translate(10px, -50%);
+  }
 
   /* Flow cells */
   .flow-cell   { display: flex; align-items: center; gap: 10px; }
@@ -273,11 +282,17 @@
     <div class="td-grid">
       <div class="td-panel">
         <h3>WIP Aging Chart</h3>
-        <canvas id="chartWipAging"></canvas>
+        <div style="position:relative">
+          <canvas id="chartWipAging"></canvas>
+          <div id="wipAgingTooltip"></div>
+        </div>
       </div>
       <div class="td-panel">
         <h3>Cycle Time Scatterplot (90 Tage)</h3>
-        <canvas id="chartScatter"></canvas>
+        <div style="position:relative">
+          <canvas id="chartScatter"></canvas>
+          <div id="scatterTooltip"></div>
+        </div>
       </div>
       <div class="td-panel">
         <h3>Throughput &amp; Ankunftsrate (12 Wochen)</h3>
@@ -297,6 +312,8 @@ let allTeams = [];
 let currentSort = { key: null, asc: true };
 let currentTeamData = null;
 let refreshTimer = null;
+let scatterDots = []; // [{cx, cy, key, ct}]
+let wipAgingBars = []; // [{x, y, w, h, key, age}]
 
 // ── Boot ───────────────────────────────────────────────────────────────
 (async function boot() {
@@ -316,7 +333,7 @@ async function loadDashboard() {
       return;
     }
 
-    allTeams = data.teams;
+    allTeams = (data.teams || []).map(t => ({ ...t, jiraBaseUrl: data.jiraBaseUrl || '' }));
 
     // Update UI chrome
     updateIterBadge(data.iteration);
@@ -572,19 +589,23 @@ function drawSparkline(id, data) {
   ctx.clearRect(0, 0, w, h);
   const max = Math.max(...data, 1) + 1;
   const min = Math.max(0, Math.min(...data) - 1);
-  const stepX = w / Math.max(data.length - 1, 1);
+  const PR = 5; // right padding so last dot isn't clipped
+  const drawW = w - PR;
+  const stepX = drawW / Math.max(data.length - 1, 1);
+  const xOf = i => i * stepX;
+  const yOf = v => h - ((v - min) / (max - min)) * (h - 4) - 2;
   ctx.beginPath(); ctx.moveTo(0, h);
-  data.forEach((v, i) => ctx.lineTo(i * stepX, h - ((v - min) / (max - min)) * (h - 4) - 2));
-  ctx.lineTo(w, h); ctx.closePath();
+  data.forEach((v, i) => ctx.lineTo(xOf(i), yOf(v)));
+  ctx.lineTo(xOf(data.length - 1), h); ctx.closePath();
   ctx.fillStyle = 'rgba(59,130,246,0.08)'; ctx.fill();
   ctx.beginPath();
   data.forEach((v, i) => {
-    const y = h - ((v - min) / (max - min)) * (h - 4) - 2;
-    i === 0 ? ctx.moveTo(0, y) : ctx.lineTo(i * stepX, y);
+    i === 0 ? ctx.moveTo(xOf(i), yOf(v)) : ctx.lineTo(xOf(i), yOf(v));
   });
   ctx.strokeStyle = 'rgba(59,130,246,0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
-  const lastY = h - ((data[data.length - 1] - min) / (max - min)) * (h - 4) - 2;
-  ctx.beginPath(); ctx.arc(w, lastY, 3, 0, Math.PI * 2);
+  const lastX = xOf(data.length - 1);
+  const lastY = yOf(data[data.length - 1]);
+  ctx.beginPath(); ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
   ctx.fillStyle = '#3b82f6'; ctx.fill();
 }
 
@@ -605,6 +626,8 @@ function openTeam(t) {
     drawFlowBalance(t);
     drawScatter(t);
     drawWipAging(t);
+    initScatterTooltip();
+    initWipAgingTooltip();
   });
 }
 
@@ -789,18 +812,100 @@ function drawScatter(t) {
   drawPLine(p85, 'P85', '#eab308');
   drawPLine(p95, 'P95', '#ef4444');
 
+  scatterDots = [];
   items.forEach(item => {
     const x = 40 + (item.x / 90) * (w - 60);
     const y = h - 30 - (Math.min(item.y, maxCT) / maxCT) * (h - 50);
     ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
     const c = item.y > p85 ? 'rgba(239,68,68,0.7)' : item.y > p50 ? 'rgba(234,179,8,0.5)' : 'rgba(34,197,94,0.5)';
     ctx.fillStyle = c; ctx.fill();
+    scatterDots.push({ cx: x, cy: y, key: item.key, ct: item.y });
   });
 
   ctx.fillStyle = '#9ca3af'; ctx.font = '10px Inter,sans-serif';
   ctx.fillText('Cycle Time (Tage)', 5, 12);
   ctx.fillText('90d ago', 40, h - 16);
   ctx.textAlign = 'right'; ctx.fillText('heute', w - 10, h - 16); ctx.textAlign = 'left';
+}
+
+function initScatterTooltip() {
+  const canvas  = document.getElementById('chartScatter');
+  const tooltip = document.getElementById('scatterTooltip');
+  if (!canvas || !tooltip) return;
+  // Remove previous listeners by cloning (avoids stacking handlers on re-open)
+  const fresh = canvas.cloneNode(true);
+  canvas.parentNode.replaceChild(fresh, canvas);
+  // Re-draw onto the fresh clone (canvas content is lost on clone)
+  if (currentTeamData) drawScatter(currentTeamData);
+
+  const c2 = document.getElementById('chartScatter');
+  c2.addEventListener('mousemove', e => {
+    const rect = c2.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (c2.width / rect.width);
+    const my = (e.clientY - rect.top)  * (c2.height / rect.height);
+    const hit = scatterDots.find(d => Math.hypot(d.cx - mx, d.cy - my) <= 8);
+    if (hit) {
+      tooltip.textContent = `${hit.key}  ·  ${hit.ct.toFixed(1)}d`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = `${e.clientX - rect.left}px`;
+      tooltip.style.top  = `${e.clientY - rect.top}px`;
+      c2.style.cursor = 'pointer';
+    } else {
+      tooltip.style.display = 'none';
+      c2.style.cursor = 'default';
+    }
+  });
+  c2.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+  c2.addEventListener('click', e => {
+    const rect = c2.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (c2.width / rect.width);
+    const my = (e.clientY - rect.top)  * (c2.height / rect.height);
+    const hit = scatterDots.find(d => Math.hypot(d.cx - mx, d.cy - my) <= 8);
+    if (hit && currentTeamData?.jiraBaseUrl) {
+      window.open(`${currentTeamData.jiraBaseUrl}/browse/${hit.key}`, '_blank');
+    }
+  });
+}
+
+function initWipAgingTooltip() {
+  const canvas  = document.getElementById('chartWipAging');
+  const tooltip = document.getElementById('wipAgingTooltip');
+  if (!canvas || !tooltip) return;
+  const fresh = canvas.cloneNode(true);
+  canvas.parentNode.replaceChild(fresh, canvas);
+  if (currentTeamData) drawWipAging(currentTeamData);
+
+  const c2 = document.getElementById('chartWipAging');
+  const scaleY = () => c2.height / c2.getBoundingClientRect().height;
+
+  c2.addEventListener('mousemove', e => {
+    const rect = c2.getBoundingClientRect();
+    const my = (e.clientY - rect.top) * scaleY();
+    const hit = wipAgingBars.find(b => my >= b.y && my <= b.y + b.h);
+    if (hit) {
+      tooltip.textContent = `${hit.key}  ·  ${hit.age}d`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = `${e.clientX - rect.left}px`;
+      tooltip.style.top  = `${e.clientY - rect.top}px`;
+      c2.style.cursor = 'pointer';
+    } else {
+      tooltip.style.display = 'none';
+      c2.style.cursor = 'default';
+    }
+  });
+  c2.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+  c2.addEventListener('click', e => {
+    const rect = c2.getBoundingClientRect();
+    const my = (e.clientY - rect.top) * scaleY();
+    const hit = wipAgingBars.find(b => my >= b.y && my <= b.y + b.h);
+    if (hit && currentTeamData?.jiraBaseUrl) {
+      window.open(`${currentTeamData.jiraBaseUrl}/browse/${hit.key}`, '_blank');
+    }
+  });
 }
 
 function drawWipAging(t) {
@@ -843,6 +948,7 @@ function drawWipAging(t) {
     return;
   }
 
+  wipAgingBars = [];
   vis.forEach((item, i) => {
     const y   = startY + i * rowH;
     const bw  = Math.max(4, (item.age / maxAge) * barAreaW);
@@ -863,6 +969,9 @@ function drawWipAging(t) {
     ctx.fillStyle = item.age > p85 ? '#dc2626' : '#374151';
     ctx.font      = 'bold 10px Inter,sans-serif';
     ctx.fillText(ageStr + warn, labelW + bw + 5, y + barH / 2 + 4);
+
+    // Store full row as hit area (key label + bar + age label)
+    wipAgingBars.push({ x: 0, y, w, h: barH, key: item.key, age: item.age });
   });
 
   ctx.fillStyle = '#9ca3af'; ctx.font = '9px Inter,sans-serif'; ctx.textAlign = 'center';
