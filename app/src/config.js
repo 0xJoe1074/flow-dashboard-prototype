@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const CONFIG_PATH = path.join(__dirname, '../data/config.json');
+const TOKEN_PATH  = path.join(__dirname, '../data/.token');
 const ENV_PATH    = path.join(__dirname, '../../.env');
 
 const DEFAULT_CONFIG = {
@@ -42,10 +43,17 @@ function writeConfig(config) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
 }
 
-/** Reads token from JIRA_API_TOKEN env var (set via .env locally or Azure App Setting in production) */
+/** Priority: 1) JIRA_API_TOKEN env var (ACI / Azure App Setting), 2) .token file (local dev fallback) */
 function getJiraToken() {
-  const t = process.env.JIRA_API_TOKEN && process.env.JIRA_API_TOKEN.trim();
-  return t || null;
+  if (process.env.JIRA_API_TOKEN && process.env.JIRA_API_TOKEN.trim()) {
+    return process.env.JIRA_API_TOKEN.trim();
+  }
+  try {
+    const t = fs.readFileSync(TOKEN_PATH, 'utf-8').trim();
+    return t || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -75,7 +83,12 @@ function setLocalToken(token) {
   } else {
     lines.push(newLine);
   }
-  fs.writeFileSync(ENV_PATH, lines.join('\n'), 'utf-8');
+  try {
+    fs.writeFileSync(ENV_PATH, lines.join('\n'), 'utf-8');
+  } catch {
+    // In production containers the .env path is not writable — that's expected.
+    // The token is already applied to process.env below.
+  }
 
   // Update the running process immediately (no restart needed)
   process.env.JIRA_API_TOKEN = token;

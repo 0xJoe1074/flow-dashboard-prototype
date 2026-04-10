@@ -1,8 +1,8 @@
 'use strict';
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const express = require('express');
-const path    = require('path');
 const crypto  = require('crypto');
 
 const { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv } = require('./src/config');
