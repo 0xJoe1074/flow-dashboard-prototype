@@ -17,6 +17,11 @@ function calculateTeamMetrics(issues, team, config) {
     let activatedAt = null;
     let closedAt    = null;
     const type = issue.fields?.issuetype?.name || 'Unknown';
+    const currentStatus = (issue.fields?.status?.name || '').toLowerCase();
+    // Jira status category is the authoritative "is this in progress?" signal.
+    // Category "In Progress" covers all intermediate states (In Review, Testing, Blocked, etc.)
+    // This is more reliable than matching a single configured status name.
+    const currentCategory = (issue.fields?.status?.statusCategory?.name || '').toLowerCase();
 
     for (const history of histories) {
       for (const item of history.items || []) {
@@ -32,12 +37,20 @@ function calculateTeamMetrics(issues, team, config) {
       }
     }
 
+    // WIP = currently in Jira's "In Progress" status category
+    // (covers all intermediate states: In Review, Testing, Blocked, In Dev, etc.)
+    const isWip = currentCategory === 'in progress';
+
+    // If item is currently active but has no activatedAt from changelog,
+    // fall back to using item creation date so cycle time / aging still works.
+    const effectiveActivatedAt = isWip && !activatedAt ? new Date(issue.fields?.created || now) : activatedAt;
+
     return {
       key: issue.key,
       type,
-      activatedAt,
+      activatedAt: effectiveActivatedAt,
       closedAt,
-      isWip: !!(activatedAt && !closedAt)
+      isWip
     };
   });
 

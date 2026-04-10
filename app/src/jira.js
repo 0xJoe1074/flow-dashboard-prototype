@@ -146,7 +146,10 @@ async function fetchTeamIssues(team, jiraConfig, token) {
     ? team.issueTypes
     : (jiraConfig.defaultIssueTypes?.length ? jiraConfig.defaultIssueTypes : null);
 
-  let jql = `(${team.jql}) AND updated >= "${dateStr}"`;
+  // Fetch recent items (90 days) for throughput/cycle time metrics,
+  // PLUS all items currently in an active status (regardless of age) so
+  // stale WIP is never missed.
+  let jql = `(${team.jql}) AND (updated >= "${dateStr}" OR statusCategory = "In Progress")`;
   if (effectiveTypes?.length) {
     const quoted = effectiveTypes.map(t => `"${t.replace(/"/g, '\\"')}"`).join(', ');
     jql += ` AND issuetype in (${quoted})`;

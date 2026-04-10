@@ -143,6 +143,13 @@
   .issue-type-chip input[type="checkbox"] { width: 13px; height: 13px; margin: 0; }
   .issue-type-chip.checked { background: var(--blue-light); border-color: var(--blue); color: var(--blue-dark); font-weight: 600; }
 
+  /* Linked boards (team form) */
+  .linked-boards-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; align-items: center; }
+  .linked-board-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; background: var(--blue-light); border: 1px solid #bfdbfe; border-radius: 14px; font-size: 12px; font-weight: 600; color: var(--blue-dark); }
+  .linked-board-chip button { background: none; border: none; cursor: pointer; color: var(--blue-dark); font-size: 15px; line-height: 1; padding: 0 2px; opacity: 0.6; }
+  .linked-board-chip button:hover { opacity: 1; }
+  .derived-jql { font-family: monospace; font-size: 11px; color: var(--gray-700); background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 6px; padding: 8px 10px; line-height: 1.5; word-break: break-all; }
+
   @media (max-width: 640px) {
     .field-row { grid-template-columns: 1fr; }
     .layout { padding: 16px 16px 60px; }
@@ -274,10 +281,27 @@
             <input type="text" id="teamBU" placeholder="z.B. Platform">
           </div>
         </div>
+        <!-- Boards section -->
         <div class="field">
-          <label>JQL-Filter *</label>
+          <label>Verknüpfte Boards</label>
+          <div id="linkedBoardsChips" class="linked-boards-chips">
+            <span style="color:var(--gray-400);font-size:12px">Keine Boards verknüpft</span>
+          </div>
+          <div class="btn-row" style="margin-top:8px">
+            <button class="btn btn-secondary btn-sm" type="button" id="addBoardToTeamBtn">+ Board aus Jira hinzufügen</button>
+          </div>
+        </div>
+        <!-- JQL section -->
+        <div class="field">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+            <label style="margin:0">JQL-Filter * <span id="jqlSourceBadge" style="font-size:11px;font-weight:400;color:var(--gray-400)"></span></label>
+            <label id="jqlOverrideLabel" style="display:none;font-size:12px;font-weight:400;display:flex;align-items:center;gap:5px;cursor:pointer">
+              <input type="checkbox" id="jqlManualOverride"> Manuell überschreiben
+            </label>
+          </div>
+          <div id="derivedJqlDisplay" class="derived-jql" style="display:none"></div>
           <textarea id="teamJQL" placeholder="project = MYPROJECT AND issuetype in (Story, Bug, Task)"></textarea>
-          <small>Genau der JQL-Filter, den du in Jira selbst für dieses Team verwenden würdest.</small>
+          <small id="teamJqlHint">Genau der JQL-Filter, den du in Jira selbst für dieses Team verwenden würdest.</small>
           <div class="btn-row" style="margin-top:6px">
             <button class="btn btn-secondary btn-sm" id="previewJqlBtn">Vorschau (Issues zählen)</button>
             <span id="jqlPreviewResult" style="font-size:12px;color:var(--gray-500)"></span>
@@ -427,6 +451,23 @@
 
 </div>
 
+<!-- Team board picker modal -->
+<div class="modal-backdrop" id="teamBoardPickerModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Board zum Team hinzufügen</h3>
+      <button class="btn btn-secondary btn-sm" onclick="closeTeamBoardPicker()">✕</button>
+    </div>
+    <div class="modal-body" id="teamBoardPickerBody">
+      <div style="text-align:center;padding:24px;color:var(--gray-400)">Wird geladen…</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeTeamBoardPicker()">Abbrechen</button>
+      <button class="btn btn-primary" id="confirmAddBoardBtn">Board hinzufügen</button>
+    </div>
+  </div>
+</div>
+
 <!-- Board import modal -->
 <div class="modal-backdrop" id="boardModal">
   <div class="modal">
@@ -454,6 +495,123 @@ let teams  = [];
 let statuses = [];
 let issueTypes = [];
 let editingTeamId = null;
+let linkedBoards = []; // boards linked to the team currently being edited
+
+// ── Board helpers ──────────────────────────────────────────────────────
+function getEffectiveJql() {
+  if (!linkedBoards.length) return null;
+  if (linkedBoards.length === 1) return linkedBoards[0].jql;
+  return linkedBoards.map(b => `(${b.jql})`).join(' OR ');
+}
+
+function renderLinkedBoards() {
+  const el = document.getElementById('linkedBoardsChips');
+  if (linkedBoards.length === 0) {
+    el.innerHTML = '<span style="color:var(--gray-400);font-size:12px">Keine Boards verknüpft — JQL manuell eingeben.</span>';
+  } else {
+    el.innerHTML = linkedBoards.map((b, i) =>
+      `<span class="linked-board-chip">${escHtml(b.name)}<button type="button" onclick="removeBoardFromTeam(${i})" title="Entfernen">×</button></span>`
+    ).join('');
+  }
+  updateJqlDisplay();
+}
+
+function updateJqlDisplay() {
+  const manual      = document.getElementById('jqlManualOverride').checked;
+  const derived     = getEffectiveJql();
+  const textarea    = document.getElementById('teamJQL');
+  const derivedDiv  = document.getElementById('derivedJqlDisplay');
+  const badge       = document.getElementById('jqlSourceBadge');
+  const overrideRow = document.getElementById('jqlOverrideLabel');
+
+  if (linkedBoards.length > 0) {
+    overrideRow.style.display = 'flex';
+    if (!manual) {
+      derivedDiv.textContent  = derived;
+      derivedDiv.style.display = '';
+      textarea.style.display   = 'none';
+      badge.textContent = linkedBoards.length === 1
+        ? `(aus Board: ${escHtml(linkedBoards[0].name)})`
+        : `(aus ${linkedBoards.length} Boards)`;
+      badge.style.color = '#2563eb';
+    } else {
+      derivedDiv.style.display = 'none';
+      textarea.style.display   = '';
+      badge.textContent = '(manuell überschrieben)';
+      badge.style.color = 'var(--yellow)';
+    }
+  } else {
+    overrideRow.style.display = 'none';
+    derivedDiv.style.display  = 'none';
+    textarea.style.display    = '';
+    badge.textContent = '';
+  }
+}
+
+function removeBoardFromTeam(idx) {
+  linkedBoards.splice(idx, 1);
+  renderLinkedBoards();
+}
+
+async function openTeamBoardPicker() {
+  document.getElementById('teamBoardPickerModal').classList.add('open');
+  const body = document.getElementById('teamBoardPickerBody');
+  body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--gray-400)">Lade Boards aus Jira…</div>';
+  try {
+    const res    = await fetch('/api/admin/jira/boards');
+    const boards = await res.json();
+    if (!res.ok) throw new Error(boards.error);
+    if (!boards.length) {
+      body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--gray-400)">Keine Boards gefunden.</div>';
+      return;
+    }
+    const linkedIds = new Set(linkedBoards.map(b => b.id));
+    body.innerHTML = '';
+    boards.forEach(b => {
+      const alreadyLinked = linkedIds.has(b.id);
+      const safeData = JSON.stringify(b).replace(/"/g, '&quot;');
+      const div = document.createElement('label');
+      div.className = 'board-item';
+      div.innerHTML = `
+        <input type="checkbox" value="${b.id}" data-board="${safeData}" ${alreadyLinked ? 'disabled checked' : ''}>
+        <div class="board-item-info">
+          <div class="board-item-name">${escHtml(b.name)}</div>
+          <div class="board-item-meta">${escHtml(b.type)} · ${escHtml(b.projectName || b.projectKey || '—')}</div>
+          <div class="board-item-jql">${escHtml(b.jql || '—')}</div>
+        </div>
+        ${alreadyLinked ? '<span class="board-already">✓ verknüpft</span>' : ''}
+      `;
+      body.appendChild(div);
+    });
+  } catch (e) {
+    body.innerHTML = `<div style="color:#dc2626;padding:16px">Fehler: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function closeTeamBoardPicker() {
+  document.getElementById('teamBoardPickerModal').classList.remove('open');
+}
+
+document.getElementById('teamBoardPickerModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('teamBoardPickerModal')) closeTeamBoardPicker();
+});
+
+document.getElementById('confirmAddBoardBtn').addEventListener('click', () => {
+  const checked = document.querySelectorAll('#teamBoardPickerBody input[type="checkbox"]:checked:not([disabled])');
+  if (!checked.length) { showToast('Kein Board ausgewählt.', 'err'); return; }
+  checked.forEach(cb => {
+    const b = JSON.parse(cb.dataset.board);
+    if (!linkedBoards.find(x => x.id === b.id)) {
+      linkedBoards.push({ id: b.id, name: b.name, jql: b.jql });
+    }
+  });
+  renderLinkedBoards();
+  closeTeamBoardPicker();
+});
+
+document.getElementById('addBoardToTeamBtn').addEventListener('click', openTeamBoardPicker);
+
+document.getElementById('jqlManualOverride').addEventListener('change', updateJqlDisplay);
 
 // ── Init ───────────────────────────────────────────────────────────────
 async function init() {
@@ -719,7 +877,7 @@ function renderTeams() {
         <div class="team-item-info">
           <div class="team-item-name">${escHtml(t.name)}</div>
           <div class="team-item-bu">${escHtml(t.businessUnit || '—')}</div>
-          <div class="team-item-jql">${escHtml(t.jql)}</div>
+          <div class="team-item-jql">${t.boards?.length ? '&#128203; ' + t.boards.map(b => escHtml(b.name)).join(', ') + ' → Board-JQL' : escHtml(t.jql)}</div>
         </div>
         <div class="team-item-actions">
           <button class="btn btn-secondary btn-sm" onclick="startEditTeam('${t.id}')">Bearbeiten</button>
@@ -733,11 +891,13 @@ function renderTeams() {
 
 document.getElementById('addTeamBtn').addEventListener('click', () => {
   editingTeamId = null;
+  linkedBoards = [];
   document.getElementById('teamFormTitle').textContent = 'Team hinzufügen';
   document.getElementById('teamId').value   = '';
   document.getElementById('teamName').value = '';
   document.getElementById('teamBU').value   = '';
   document.getElementById('teamJQL').value  = '';
+  document.getElementById('jqlManualOverride').checked = false;
   document.getElementById('teamActiveStatus').innerHTML = '<option value="">— Global verwenden —</option>';
   document.getElementById('teamDoneStatus').innerHTML   = '<option value="">— Global verwenden —</option>';
   document.getElementById('teamStatusHint').textContent = 'JQL eingeben und "↺ Status neu laden" klicken.';
@@ -746,6 +906,7 @@ document.getElementById('addTeamBtn').addEventListener('click', () => {
   document.getElementById('teamIssueTypeSection').style.display = 'none';
   document.getElementById('teamIssueTypeList').innerHTML = '';
   document.getElementById('teamIssueTypeHint').textContent = '';
+  renderLinkedBoards();
   showTeamForm();
   document.getElementById('teamName').focus();
 });
@@ -754,11 +915,15 @@ function startEditTeam(id) {
   const t = teams.find(t => t.id === id);
   if (!t) return;
   editingTeamId = id;
+  linkedBoards = t.boards ? [...t.boards] : [];
   document.getElementById('teamFormTitle').textContent = 'Team bearbeiten';
   document.getElementById('teamId').value   = t.id;
   document.getElementById('teamName').value = t.name;
   document.getElementById('teamBU').value   = t.businessUnit || '';
-  document.getElementById('teamJQL').value  = t.jql;
+  // If boards drive the JQL, show derived. If manual override or no boards, show textarea.
+  const hasBoardJql = linkedBoards.length > 0 && t.jql === getEffectiveJqlFor(linkedBoards);
+  document.getElementById('jqlManualOverride').checked = linkedBoards.length > 0 && !hasBoardJql;
+  document.getElementById('teamJQL').value  = t.jql || '';
   setSelectValue('teamActiveStatus', t.activeStatus || '');
   setSelectValue('teamDoneStatus',   t.doneStatus   || '');
   document.getElementById('jqlPreviewResult').textContent = '';
@@ -775,9 +940,16 @@ function startEditTeam(id) {
     document.getElementById('teamIssueTypeList').innerHTML = '';
     document.getElementById('teamIssueTypeHint').textContent = '';
   }
+  renderLinkedBoards();
   showTeamForm();
-  // Auto-load statuses used by this team's JQL
+  // Auto-load statuses
   if (t.jql) loadStatusesForTeam(t.jql, t.activeStatus, t.doneStatus);
+}
+
+function getEffectiveJqlFor(boards) {
+  if (!boards.length) return null;
+  if (boards.length === 1) return boards[0].jql;
+  return boards.map(b => `(${b.jql})`).join(' OR ');
 }
 
 async function loadStatusesForTeam(jql, currentActive, currentDone) {
@@ -845,20 +1017,25 @@ document.getElementById('reloadTeamStatusesBtn').addEventListener('click', () =>
 document.getElementById('saveTeamBtn').addEventListener('click', () => {
   const name = document.getElementById('teamName').value.trim();
   const bu   = document.getElementById('teamBU').value.trim();
-  const jql  = document.getElementById('teamJQL').value.trim();
+  const manual = document.getElementById('jqlManualOverride').checked;
+  // Determine final JQL: derived from boards (unless manually overridden) or manual textarea
+  const derivedJql = getEffectiveJql();
+  const jql = (derivedJql && !manual) ? derivedJql : document.getElementById('teamJQL').value.trim();
   const activeStatus = document.getElementById('teamActiveStatus').value || null;
   const doneStatus   = document.getElementById('teamDoneStatus').value   || null;
   const useGlobalTypes = document.getElementById('teamUseGlobalTypes').checked;
   const teamIssueTypes = useGlobalTypes ? null : [...new Set(getSelectedIssueTypes('teamIssueTypeList'))];
 
   if (!name) { showToast('Team-Name ist Pflichtfeld.', 'err'); return; }
-  if (!jql)  { showToast('JQL-Filter ist Pflichtfeld.', 'err'); return; }
+  if (!jql)  { showToast('JQL-Filter fehlt — entweder Board verknüpfen oder manuell eingeben.', 'err'); return; }
+
+  const boards = linkedBoards.length ? [...linkedBoards] : undefined;
 
   if (editingTeamId) {
     const idx = teams.findIndex(t => t.id === editingTeamId);
-    if (idx >= 0) teams[idx] = { ...teams[idx], name, businessUnit: bu, jql, activeStatus, doneStatus, issueTypes: teamIssueTypes };
+    if (idx >= 0) teams[idx] = { ...teams[idx], name, businessUnit: bu, boards, jql, activeStatus, doneStatus, issueTypes: teamIssueTypes };
   } else {
-    teams.push({ id: crypto.randomUUID(), name, businessUnit: bu, jql, activeStatus, doneStatus, issueTypes: teamIssueTypes });
+    teams.push({ id: crypto.randomUUID(), name, businessUnit: bu, boards, jql, activeStatus, doneStatus, issueTypes: teamIssueTypes });
   }
 
   renderTeams();
@@ -925,6 +1102,7 @@ document.getElementById('importSelectedBtn').addEventListener('click', () => {
       id:           crypto.randomUUID(),
       name:         b.name,
       businessUnit: b.projectName || '',
+      boards:       [{ id: b.id, name: b.name, jql: b.jql }],
       jql:          b.jql,
       activeStatus: null,
       doneStatus:   null

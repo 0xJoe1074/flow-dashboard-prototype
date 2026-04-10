@@ -810,19 +810,27 @@ function drawWipAging(t) {
   const p85    = t.p85   || p50 * 1.9;
   const maxAge = Math.max(p85 * 1.5, ...items.map(i => i.age), 1);
   const vis    = items.slice(0, 12);
-  const barH   = Math.min(26, (h - 50) / Math.max(vis.length, 1));
-  const startY = 20;
 
   ctx.clearRect(0, 0, w, h);
   ctx.fillStyle = '#f9fafb'; ctx.fillRect(0, 0, w, h);
 
+  // Measure widest key label to set left margin dynamically
+  ctx.font = '11px Inter,sans-serif';
+  const labelW  = Math.min(90, Math.max(50, ...vis.map(i => ctx.measureText(i.key).width + 8)));
+  const rightW  = 54;  // space for "1222d ⚠"
+  const barAreaW = w - labelW - rightW;
+  const barH    = Math.min(22, Math.floor((h - 40) / Math.max(vis.length, 1) - 4));
+  const rowH    = barH + 4;
+  const startY  = 18;
+
+  // Vertical guide lines (P50 / P85)
   const drawVLine = (val, label, color) => {
-    const x = 80 + (val / maxAge) * (w - 100);
+    const x = labelW + (val / maxAge) * barAreaW;
     ctx.setLineDash([4, 3]); ctx.strokeStyle = color; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x, 8); ctx.lineTo(x, startY + vis.length * (barH + 4)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x, 6); ctx.lineTo(x, startY + vis.length * rowH - 2); ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = color; ctx.font = 'bold 10px Inter,sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(label, x, 8); ctx.textAlign = 'left';
+    ctx.fillStyle = color; ctx.font = 'bold 9px Inter,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(label, x, 7); ctx.textAlign = 'left';
   };
 
   drawVLine(p50, 'P50', '#22c55e');
@@ -836,21 +844,29 @@ function drawWipAging(t) {
   }
 
   vis.forEach((item, i) => {
-    const y  = startY + i * (barH + 4);
-    const bw = (item.age / maxAge) * (w - 100);
-    const c  = item.age > p85 ? 'rgba(239,68,68,0.6)' : item.age > p50 ? 'rgba(234,179,8,0.4)' : 'rgba(59,130,246,0.4)';
+    const y   = startY + i * rowH;
+    const bw  = Math.max(4, (item.age / maxAge) * barAreaW);
+    const col = item.age > p85 ? 'rgba(239,68,68,0.6)' : item.age > p50 ? 'rgba(234,179,8,0.4)' : 'rgba(59,130,246,0.4)';
+
+    // Key label (right-aligned, clipped to labelW)
     ctx.fillStyle = '#374151'; ctx.font = '11px Inter,sans-serif'; ctx.textAlign = 'right';
-    ctx.fillText(item.key, 75, y + barH / 2 + 4);
+    ctx.fillText(item.key, labelW - 4, y + barH / 2 + 4);
     ctx.textAlign = 'left';
-    ctx.fillStyle = c;
-    ctx.beginPath(); ctx.roundRect(80, y, bw, barH, 4); ctx.fill();
-    ctx.fillStyle = '#374151'; ctx.font = 'bold 11px Inter,sans-serif';
-    ctx.fillText(item.age + 'd', 80 + bw + 6, y + barH / 2 + 4);
-    if (item.age > p85) { ctx.fillStyle = '#ef4444'; ctx.fillText('⚠', 80 + bw + 32, y + barH / 2 + 4); }
+
+    // Bar
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.roundRect(labelW, y, bw, barH, 3); ctx.fill();
+
+    // Age label + warning — always fits in rightW
+    const ageStr = item.age + 'd';
+    const warn   = item.age > p85 ? ' ⚠' : '';
+    ctx.fillStyle = item.age > p85 ? '#dc2626' : '#374151';
+    ctx.font      = 'bold 10px Inter,sans-serif';
+    ctx.fillText(ageStr + warn, labelW + bw + 5, y + barH / 2 + 4);
   });
 
-  ctx.fillStyle = '#9ca3af'; ctx.font = '10px Inter,sans-serif'; ctx.textAlign = 'center';
-  ctx.fillText('Alter in Tagen →', w / 2, h - 8);
+  ctx.fillStyle = '#9ca3af'; ctx.font = '9px Inter,sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Alter in Tagen →', labelW + barAreaW / 2, h - 4);
   ctx.textAlign = 'left';
 }
 
