@@ -41,7 +41,9 @@ function calculateTeamMetrics(issues, team, config) {
     };
   });
 
-  // ── Throughput & Arrival by week (last 12 weeks) ───────────────────
+  // ── Throughput & Arrival by week (last 12 weeks incl. current) ─────
+  // ref = now so the last bucket is the ongoing (incomplete) week.
+  // The frontend labels it clearly as "current".
   const tp          = buildWeeklyBuckets(items, i => i.closedAt, now, WEEKS);
   const arrivalRate = buildWeeklyBuckets(items, i => i.activatedAt, now, WEEKS);
 
@@ -52,7 +54,7 @@ function calculateTeamMetrics(issues, team, config) {
   // ── Cycle Time ─────────────────────────────────────────────────────
   const closedItems = items.filter(i => i.activatedAt && i.closedAt);
   const cycleTimes  = closedItems.map(
-    i => (i.closedAt - i.activatedAt) / MS_PER_DAY
+    i => (i.closedAt - i.activatedAt) / MS_PER_DAY + 1  // +1 per Vacanti (min 1 day)
   );
   const p50 = round1(percentile(cycleTimes, 50));
   const p85 = round1(percentile(cycleTimes, 85));
@@ -60,8 +62,9 @@ function calculateTeamMetrics(issues, team, config) {
   // Recent cycle time: items closed in last 4 weeks
   const fourWeeksAgo = subtractDays(now, 28);
   const recentClosed = closedItems.filter(i => i.closedAt >= fourWeeksAgo);
-  const recentCT = recentClosed.map(i => (i.closedAt - i.activatedAt) / MS_PER_DAY);
+  const recentCT = recentClosed.map(i => (i.closedAt - i.activatedAt) / MS_PER_DAY + 1);
   const p50recent = recentCT.length >= 3 ? round1(percentile(recentCT, 50)) : p50;
+  const p85recent = recentCT.length >= 3 ? round1(percentile(recentCT, 85)) : p85;
 
   // ── WIP ────────────────────────────────────────────────────────────
   const wipItems  = items.filter(i => i.isWip);
@@ -91,7 +94,7 @@ function calculateTeamMetrics(issues, team, config) {
     .filter(i => i.closedAt >= ninetyDaysAgo)
     .map(i => ({
       x: Math.round((now - i.closedAt) / MS_PER_DAY),
-      y: round1((i.closedAt - i.activatedAt) / MS_PER_DAY),
+      y: round1((i.closedAt - i.activatedAt) / MS_PER_DAY + 1),
       type: i.type
     }));
 
@@ -99,7 +102,7 @@ function calculateTeamMetrics(issues, team, config) {
   const wipAgingData = wipItems
     .map(i => ({
       key: i.key,
-      age: Math.round((now - i.activatedAt) / MS_PER_DAY),
+      age: Math.round((now - i.activatedAt) / MS_PER_DAY) + 1,
       type: i.type
     }))
     .sort((a, b) => b.age - a.age)
@@ -117,6 +120,7 @@ function calculateTeamMetrics(issues, team, config) {
     p50,
     p85,
     p50recent,
+    p85recent,
 
     // WIP
     wipCount: wipItems.length,
@@ -137,7 +141,8 @@ function calculateTeamMetrics(issues, team, config) {
 
     // Meta
     tool: 'Jira Cloud',
-    totalIssuesFetched: issues.length
+    totalIssuesFetched: issues.length,
+    issueTypesFiltered: [...new Set(items.map(i => i.type))].sort()
   };
 }
 
@@ -145,11 +150,19 @@ function calculateTeamMetrics(issues, team, config) {
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-function buildWeeklyBuckets(items, dateFn, now, weeks) {
+function startOfIsoWeek(date) {
+  const d = new Date(date);
+  const day = d.getDay() || 7; // Mon=1 … Sun=7
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (day - 1));
+  return d;
+}
+
+function buildWeeklyBuckets(items, dateFn, ref, weeks) {
   const result = [];
   for (let w = weeks - 1; w >= 0; w--) {
-    const start = subtractDays(now, (w + 1) * 7);
-    const end   = subtractDays(now, w * 7);
+    const start = subtractDays(ref, (w + 1) * 7);
+    const end   = subtractDays(ref, w * 7);
     const count = items.filter(i => {
       const d = dateFn(i);
       return d && d >= start && d < end;

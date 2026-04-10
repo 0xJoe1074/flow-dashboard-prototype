@@ -6,7 +6,7 @@ const express = require('express');
 const crypto  = require('crypto');
 
 const { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv } = require('./src/config');
-const { testConnection, getStatuses, getStatusesForJql, getBoards, fetchTeamIssues, previewJql } = require('./src/jira');
+const { testConnection, getStatuses, getIssueTypes, getStatusesForJql, getBoards, fetchTeamIssues, previewJql } = require('./src/jira');
 const { calculateTeamMetrics } = require('./src/metrics');
 const { getCache, setCache, clearCache, getCacheStatus } = require('./src/cache');
 
@@ -156,6 +156,18 @@ app.get('/api/admin/jira/statuses', async (_req, res) => {
   }
 });
 
+app.get('/api/admin/jira/issuetypes', async (_req, res) => {
+  try {
+    const config = readConfig();
+    const token  = getJiraToken();
+    if (!token) return res.status(400).json({ error: 'Kein API Token konfiguriert.' });
+    const types = await getIssueTypes(config.jira, token);
+    res.json(types);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Returns only statuses actually used by a given JQL (for team status override)
 app.post('/api/admin/jira/statuses-for-jql', async (req, res) => {
   try {
@@ -222,7 +234,11 @@ async function buildDashboardData(config) {
     try {
       const issues  = await fetchTeamIssues(team, config.jira, token);
       const metrics = calculateTeamMetrics(issues, team, config);
-      results.push({ id: team.id, name: team.name, bu: team.businessUnit || '', ...metrics });
+      // Include which issue types were configured (for dashboard badge display)
+      const effectiveTypes = team.issueTypes?.length
+        ? team.issueTypes
+        : (config.jira?.defaultIssueTypes?.length ? config.jira.defaultIssueTypes : null);
+      results.push({ id: team.id, name: team.name, bu: team.businessUnit || '', issueTypesConfig: effectiveTypes || [], ...metrics });
     } catch (err) {
       console.error(`Team "${team.name}":`, err.message);
       results.push({ id: team.id, name: team.name, bu: team.businessUnit || '', error: err.message });

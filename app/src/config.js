@@ -11,7 +11,8 @@ const DEFAULT_CONFIG = {
     baseUrl: 'https://infoniqa.atlassian.net',
     email: '',
     defaultActiveStatus: 'In Progress',
-    defaultDoneStatus: 'Done'
+    defaultDoneStatus: 'Done',
+    defaultIssueTypes: []
   },
   dashboard: {
     iteration: 1,

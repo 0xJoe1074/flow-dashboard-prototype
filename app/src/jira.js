@@ -102,14 +102,33 @@ async function getBoards(jiraConfig, token) {
   return results;
 }
 
-/** Returns all global Jira statuses as [{ id, name, category }] */
+/** Returns all global Jira statuses as [{ id, name, category }], deduplicated by name */
 async function getStatuses(jiraConfig, token) {
   const data = await jiraFetch('/status', jiraConfig, token);
-  return data.map(s => ({
-    id: s.id,
-    name: s.name,
-    category: s.statusCategory?.name || 'unknown'
-  }));
+  const seen = new Map();
+  for (const s of data) {
+    const key = s.name.toLowerCase();
+    if (!seen.has(key)) {
+      seen.set(key, {
+        id: s.id,
+        name: s.name,
+        category: s.statusCategory?.name || 'unknown'
+      });
+    }
+  }
+  return [...seen.values()];
+}
+
+/** Returns all non-subtask issue types as [{ id, name }] deduplicated by name, sorted */
+async function getIssueTypes(jiraConfig, token) {
+  const data = await jiraFetch('/issuetype', jiraConfig, token);
+  const seen = new Map();
+  for (const t of data) {
+    if (!t.subtask && !seen.has(t.name)) {
+      seen.set(t.name, { id: t.id, name: t.name });
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
@@ -122,7 +141,16 @@ async function fetchTeamIssues(team, jiraConfig, token) {
   cutoff.setDate(cutoff.getDate() - 90);
   const dateStr = cutoff.toISOString().split('T')[0];
 
-  const jql = `(${team.jql}) AND updated >= "${dateStr}"`;
+  // Apply issue type filter: team-level overrides global; empty/null = all types
+  const effectiveTypes = team.issueTypes?.length
+    ? team.issueTypes
+    : (jiraConfig.defaultIssueTypes?.length ? jiraConfig.defaultIssueTypes : null);
+
+  let jql = `(${team.jql}) AND updated >= "${dateStr}"`;
+  if (effectiveTypes?.length) {
+    const quoted = effectiveTypes.map(t => `"${t.replace(/"/g, '\\"')}"`).join(', ');
+    jql += ` AND issuetype in (${quoted})`;
+  }
   const fields = 'summary,status,issuetype,created,updated';
 
   let allIssues = [];
@@ -154,6 +182,8 @@ async function fetchTeamIssues(team, jiraConfig, token) {
     if (typeof data.isLast === 'boolean') {
       isLast = data.isLast;
       nextPageToken = data.nextPageToken || null;
+      // Safety: if no nextPageToken and not explicitly isLast, treat as last page
+      if (!nextPageToken) isLast = true;
     } else {
       // Legacy API: total / startAt
       total = data.total ?? 0;
@@ -206,4 +236,4 @@ async function previewJql(jql, jiraConfig, token) {
   return (data.issues?.length ?? 0);
 }
 
-module.exports = { jiraFetch, testConnection, getStatuses, getStatusesForJql, getBoards, fetchTeamIssues, previewJql };
+module.exports = { jiraFetch, testConnection, getStatuses, getIssueTypes, getStatusesForJql, getBoards, fetchTeamIssues, previewJql };

@@ -136,6 +136,13 @@
   /* Refresh interval */
   select.inline { width: auto; display: inline-block; }
 
+  /* Issue type chips */
+  .issue-type-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .issue-type-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 20px; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--gray-700); background: white; transition: all 0.12s; user-select: none; }
+  .issue-type-chip:hover { border-color: var(--blue); background: var(--blue-light); }
+  .issue-type-chip input[type="checkbox"] { width: 13px; height: 13px; margin: 0; }
+  .issue-type-chip.checked { background: var(--blue-light); border-color: var(--blue); color: var(--blue-dark); font-weight: 600; }
+
   @media (max-width: 640px) {
     .field-row { grid-template-columns: 1fr; }
     .layout { padding: 16px 16px 60px; }
@@ -223,6 +230,25 @@
     </div>
   </div>
 
+  <!-- ── Section 2b: Work Item Types (global) ─────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2>📦 Work Item Types (global)</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--gray-500);line-height:1.6">
+        Welche Work Item Types sollen in den Flow-Metriken berücksichtigt werden?
+        Keine Auswahl = alle Types. Einzelne Teams können dies unten überschreiben.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-secondary btn-sm" id="loadIssueTypesBtn">Issue Types aus Jira laden</button>
+        <span id="issueTypeLoadResult" style="font-size:12px;color:var(--gray-400)"></span>
+      </div>
+      <div id="globalIssueTypeList" class="issue-type-list" style="display:none"></div>
+      <small style="color:var(--gray-400)">Keine Auswahl = alle Work Item Types werden berücksichtigt.</small>
+    </div>
+  </div>
+
   <!-- ── Section 3: Teams ─────────────────────────────────────────── -->
   <div class="card">
     <div class="card-header">
@@ -279,6 +305,22 @@
             </div>
           </div>
           <div style="font-size:11px;color:var(--gray-400);margin-top:2px" id="teamStatusHint"></div>
+        </div>
+        <div style="border-top:1px solid var(--gray-200);padding-top:14px">
+          <div style="font-size:12px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">
+            Work Item Types (optional — überschreibt globale Einstellung)
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:10px">
+            <input type="checkbox" id="teamUseGlobalTypes" checked>
+            <span>Globale Einstellung verwenden</span>
+          </label>
+          <div id="teamIssueTypeSection" style="display:none">
+            <div class="btn-row" style="margin-bottom:8px">
+              <button class="btn btn-secondary btn-sm" type="button" id="loadTeamIssueTypesBtn">↺ Issue Types laden</button>
+              <span id="teamIssueTypeHint" style="font-size:11px;color:var(--gray-400)"></span>
+            </div>
+            <div id="teamIssueTypeList" class="issue-type-list"></div>
+          </div>
         </div>
         <div class="btn-row">
           <button class="btn btn-primary" id="saveTeamBtn">Team speichern</button>
@@ -410,6 +452,7 @@
 let config = null;
 let teams  = [];
 let statuses = [];
+let issueTypes = [];
 let editingTeamId = null;
 
 // ── Init ───────────────────────────────────────────────────────────────
@@ -460,6 +503,12 @@ async function loadConfig() {
     }
 
     renderTeams();
+    // Restore global issue types
+    const savedGlobalTypes = config.jira?.defaultIssueTypes || [];
+    if (savedGlobalTypes.length) {
+      renderIssueTypeList('globalIssueTypeList', savedGlobalTypes, savedGlobalTypes);
+      document.getElementById('globalIssueTypeList').style.display = 'flex';
+    }
   } catch (e) {
     showToast('Konfiguration konnte nicht geladen werden: ' + e.message, 'err');
   }
@@ -581,6 +630,74 @@ function populateStatusSelects() {
   });
 }
 
+// ── Issue Types ───────────────────────────────────────────────
+function renderIssueTypeList(containerId, availableTypes, selectedTypes) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  const selected  = new Set(Array.isArray(selectedTypes) ? selectedTypes : []);
+  const available = availableTypes?.length ? availableTypes : [...selected];
+  if (!available.length) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--gray-400)">Keine Types — erst aus Jira laden.</span>';
+    return;
+  }
+  available.forEach(name => {
+    const isChecked = selected.has(name);
+    const label = document.createElement('label');
+    label.className = 'issue-type-chip' + (isChecked ? ' checked' : '');
+    label.innerHTML = `<input type="checkbox" value="${escHtml(name)}" ${isChecked ? 'checked' : ''} style="display:none">${escHtml(name)}`;
+    label.querySelector('input').addEventListener('change', e => {
+      label.classList.toggle('checked', e.target.checked);
+    });
+    container.appendChild(label);
+  });
+}
+
+function getSelectedIssueTypes(containerId) {
+  const container = document.getElementById(containerId);
+  return [...container.querySelectorAll('input[type="checkbox"]:checked')].map(cb => cb.value);
+}
+
+document.getElementById('loadIssueTypesBtn').addEventListener('click', async () => {
+  const btn  = document.getElementById('loadIssueTypesBtn');
+  const info = document.getElementById('issueTypeLoadResult');
+  btn.disabled = true; btn.textContent = 'Laden…';
+  try {
+    const res  = await fetch('/api/admin/jira/issuetypes');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    issueTypes = data.map(t => t.name);
+    const current = getSelectedIssueTypes('globalIssueTypeList');
+    renderIssueTypeList('globalIssueTypeList', issueTypes, current);
+    document.getElementById('globalIssueTypeList').style.display = 'flex';
+    info.textContent = `${issueTypes.length} Types geladen.`;
+  } catch (e) {
+    info.textContent = 'Fehler: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = 'Issue Types aus Jira laden';
+});
+
+document.getElementById('teamUseGlobalTypes').addEventListener('change', e => {
+  document.getElementById('teamIssueTypeSection').style.display = e.target.checked ? 'none' : 'block';
+});
+
+document.getElementById('loadTeamIssueTypesBtn').addEventListener('click', async () => {
+  const btn  = document.getElementById('loadTeamIssueTypesBtn');
+  const hint = document.getElementById('teamIssueTypeHint');
+  btn.disabled = true; btn.textContent = 'Laden…';
+  try {
+    const res  = await fetch('/api/admin/jira/issuetypes');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    const names   = data.map(t => t.name);
+    const current = getSelectedIssueTypes('teamIssueTypeList');
+    renderIssueTypeList('teamIssueTypeList', names, current);
+    hint.textContent = `${names.length} Types geladen.`;
+  } catch (e) {
+    hint.textContent = 'Fehler: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '↺ Issue Types laden';
+});
+
 // ── Teams ──────────────────────────────────────────────────────────────
 function renderTeams() {
   const list  = document.getElementById('teamList');
@@ -625,6 +742,10 @@ document.getElementById('addTeamBtn').addEventListener('click', () => {
   document.getElementById('teamDoneStatus').innerHTML   = '<option value="">— Global verwenden —</option>';
   document.getElementById('teamStatusHint').textContent = 'JQL eingeben und "↺ Status neu laden" klicken.';
   document.getElementById('jqlPreviewResult').textContent = '';
+  document.getElementById('teamUseGlobalTypes').checked = true;
+  document.getElementById('teamIssueTypeSection').style.display = 'none';
+  document.getElementById('teamIssueTypeList').innerHTML = '';
+  document.getElementById('teamIssueTypeHint').textContent = '';
   showTeamForm();
   document.getElementById('teamName').focus();
 });
@@ -641,6 +762,19 @@ function startEditTeam(id) {
   setSelectValue('teamActiveStatus', t.activeStatus || '');
   setSelectValue('teamDoneStatus',   t.doneStatus   || '');
   document.getElementById('jqlPreviewResult').textContent = '';
+  // Restore team issue types
+  const teamTypes = t.issueTypes;
+  if (teamTypes && teamTypes.length) {
+    document.getElementById('teamUseGlobalTypes').checked = false;
+    document.getElementById('teamIssueTypeSection').style.display = 'block';
+    renderIssueTypeList('teamIssueTypeList', teamTypes, teamTypes);
+    document.getElementById('teamIssueTypeHint').textContent = 'Gespeicherte Types — ↺ neu laden für vollständige Liste.';
+  } else {
+    document.getElementById('teamUseGlobalTypes').checked = true;
+    document.getElementById('teamIssueTypeSection').style.display = 'none';
+    document.getElementById('teamIssueTypeList').innerHTML = '';
+    document.getElementById('teamIssueTypeHint').textContent = '';
+  }
   showTeamForm();
   // Auto-load statuses used by this team's JQL
   if (t.jql) loadStatusesForTeam(t.jql, t.activeStatus, t.doneStatus);
@@ -714,15 +848,17 @@ document.getElementById('saveTeamBtn').addEventListener('click', () => {
   const jql  = document.getElementById('teamJQL').value.trim();
   const activeStatus = document.getElementById('teamActiveStatus').value || null;
   const doneStatus   = document.getElementById('teamDoneStatus').value   || null;
+  const useGlobalTypes = document.getElementById('teamUseGlobalTypes').checked;
+  const teamIssueTypes = useGlobalTypes ? null : [...new Set(getSelectedIssueTypes('teamIssueTypeList'))];
 
   if (!name) { showToast('Team-Name ist Pflichtfeld.', 'err'); return; }
   if (!jql)  { showToast('JQL-Filter ist Pflichtfeld.', 'err'); return; }
 
   if (editingTeamId) {
     const idx = teams.findIndex(t => t.id === editingTeamId);
-    if (idx >= 0) teams[idx] = { ...teams[idx], name, businessUnit: bu, jql, activeStatus, doneStatus };
+    if (idx >= 0) teams[idx] = { ...teams[idx], name, businessUnit: bu, jql, activeStatus, doneStatus, issueTypes: teamIssueTypes };
   } else {
-    teams.push({ id: crypto.randomUUID(), name, businessUnit: bu, jql, activeStatus, doneStatus });
+    teams.push({ id: crypto.randomUUID(), name, businessUnit: bu, jql, activeStatus, doneStatus, issueTypes: teamIssueTypes });
   }
 
   renderTeams();
@@ -845,7 +981,8 @@ async function saveConfig(silent = false) {
       baseUrl: document.getElementById('jiraBaseUrl').value.trim(),
       email:   document.getElementById('jiraEmail').value.trim(),
       defaultActiveStatus: document.getElementById('defaultActiveStatus').value,
-      defaultDoneStatus:   document.getElementById('defaultDoneStatus').value
+      defaultDoneStatus:   document.getElementById('defaultDoneStatus').value,
+      defaultIssueTypes:   [...new Set(getSelectedIssueTypes('globalIssueTypeList'))]
     },
     dashboard: {
       title: document.getElementById('dashboardTitle').value.trim() || 'Delivery Health Dashboard',
@@ -913,7 +1050,7 @@ function escHtml(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-let toastTimer;
+var toastTimer;
 function showToast(msg, type = 'ok') {
   const el = document.getElementById('toast');
   el.textContent = (type === 'ok' ? '✓ ' : '✗ ') + msg;

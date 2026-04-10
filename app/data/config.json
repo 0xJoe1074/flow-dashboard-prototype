@@ -3,7 +3,11 @@
     "baseUrl": "https://infoniqa.atlassian.net",
     "email": "joerg.lindemann@brz.eu",
     "defaultActiveStatus": "In Progress",
-    "defaultDoneStatus": "Done"
+    "defaultDoneStatus": "Done",
+    "defaultIssueTypes": [
+      "Bug",
+      "Story"
+    ]
   },
   "dashboard": {
     "title": "Delivery Health Dashboard",
