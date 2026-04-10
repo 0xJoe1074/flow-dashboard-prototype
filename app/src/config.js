@@ -65,7 +65,7 @@ function setLocalToken(token) {
   if (process.env.JIRA_API_TOKEN_READONLY === 'true') {
     throw new Error(
       'Token ist als schreibgeschützte Umgebungsvariable gesetzt. ' +
-      'Bitte im Azure Portal unter App Settings ändern.'
+      'Bitte im Azure DevOps Variable Group "vg-infoniqadashboard" ändern und die Pipeline neu starten.'
     );
   }
 
@@ -98,8 +98,13 @@ function hasToken() {
   return !!getJiraToken();
 }
 
+/**
+ * Returns true only when the token is a read-only environment variable
+ * (i.e. set via Azure App Setting in production, not via local .env).
+ * Set JIRA_API_TOKEN_READONLY=true in ACI to activate the UI lock.
+ */
 function isTokenFromEnv() {
-  return !!(process.env.JIRA_API_TOKEN && process.env.JIRA_API_TOKEN.trim());
+  return process.env.JIRA_API_TOKEN_READONLY === 'true';
 }
 
 module.exports = { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv };
