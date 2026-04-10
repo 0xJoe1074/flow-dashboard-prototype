@@ -126,22 +126,41 @@ async function fetchTeamIssues(team, jiraConfig, token) {
   const fields = 'summary,status,issuetype,created,updated';
 
   let allIssues = [];
+  // Support both legacy (total/startAt) and new (nextPageToken/isLast) pagination
   let startAt = 0;
+  let nextPageToken = null;
+  let isLast = false;
   let total = Infinity;
 
-  while (startAt < total) {
-    const qs = new URLSearchParams({
+  while (!isLast && allIssues.length < total) {
+    const params = {
       jql,
-      startAt,
       maxResults: BATCH_SIZE,
       fields,
       expand: 'changelog'
-    });
+    };
+    if (nextPageToken) {
+      params.nextPageToken = nextPageToken;
+    } else {
+      params.startAt = startAt;
+    }
+    const qs = new URLSearchParams(params);
     const data = await jiraFetch(`/search/jql?${qs}`, jiraConfig, token);
-    total = data.total ?? 0;
+
     const batch = data.issues || [];
     allIssues = allIssues.concat(batch);
-    startAt += batch.length;
+
+    // New API: isLast / nextPageToken
+    if (typeof data.isLast === 'boolean') {
+      isLast = data.isLast;
+      nextPageToken = data.nextPageToken || null;
+    } else {
+      // Legacy API: total / startAt
+      total = data.total ?? 0;
+      startAt += batch.length;
+      isLast = startAt >= total;
+    }
+
     if (batch.length === 0) break;
   }
 
@@ -181,7 +200,10 @@ async function getStatusesForJql(jql, jiraConfig, token) {
 async function previewJql(jql, jiraConfig, token) {
   const qs = new URLSearchParams({ jql, maxResults: 1, fields: 'summary' });
   const data = await jiraFetch(`/search/jql?${qs}`, jiraConfig, token);
-  return data.total ?? 0;
+  // New API returns isLast instead of total — fall back to issue count
+  if (typeof data.total === 'number') return data.total;
+  // If isLast=true and we got 0 issues → 0; otherwise unknown, return fetched count
+  return (data.issues?.length ?? 0);
 }
 
 module.exports = { jiraFetch, testConnection, getStatuses, getStatusesForJql, getBoards, fetchTeamIssues, previewJql };
