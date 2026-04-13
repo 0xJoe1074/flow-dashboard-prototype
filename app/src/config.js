@@ -12,7 +12,15 @@ const DEFAULT_CONFIG = {
     email: '',
     defaultActiveStatus: 'In Progress',
     defaultDoneStatus: 'Done',
-    defaultIssueTypes: []
+    defaultIssueTypes: [],
+    // Iteration 2+: how to categorise work items (User Story / Tech Story / Bug etc.)
+    // Each entry: { name, color, isValueWork, filter: { method: 'issueType'|'label'|'customField',
+    //   issueTypes?: [], labelValue?: '', customFieldId?: '', customFieldValue?: '' } }
+    workItemCategories: [],
+    // Iteration 3: how to identify committed items
+    // { method: 'label'|'parentEpic'|'fixVersion', labelValue, epicKey, fixVersionName,
+    //   quarterStart: 'YYYY-MM-DD', quarterEnd: 'YYYY-MM-DD' }
+    commitment: null
   },
   dashboard: {
     iteration: 1,

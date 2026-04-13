@@ -6,8 +6,8 @@ const express = require('express');
 const crypto  = require('crypto');
 
 const { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv } = require('./src/config');
-const { testConnection, getStatuses, getIssueTypes, getStatusesForJql, getBoards, fetchTeamIssues, previewJql } = require('./src/jira');
-const { calculateTeamMetrics } = require('./src/metrics');
+const { testConnection, getStatuses, getIssueTypes, getStatusesForJql, getBoards, fetchTeamIssues, previewJql, getLabels, getCustomFields } = require('./src/jira');
+const { calculateTeamMetrics, buildCommitmentJql } = require('./src/metrics');
 const { getCache, setCache, clearCache, getCacheStatus } = require('./src/cache');
 
 const app  = express();
@@ -201,6 +201,78 @@ app.post('/api/admin/jira/preview', async (req, res) => {
   }
 });
 
+// Returns labels available in Jira (for work item category configuration)
+app.get('/api/admin/jira/labels', async (_req, res) => {
+  try {
+    const config = readConfig();
+    const token  = getJiraToken();
+    if (!token) return res.status(400).json({ error: 'Kein API Token konfiguriert.' });
+    const labels = await getLabels(config.jira, token);
+    res.json(labels);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Returns custom fields available in Jira (for work item category configuration)
+app.get('/api/admin/jira/fields', async (_req, res) => {
+  try {
+    const config = readConfig();
+    const token  = getJiraToken();
+    if (!token) return res.status(400).json({ error: 'Kein API Token konfiguriert.' });
+    const fields = await getCustomFields(config.jira, token);
+    res.json(fields);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Returns statuses only for a given JQL + optional issue type filter
+// Body: { jql: string, issueTypes?: string[] }
+app.post('/api/admin/jira/statuses-for-types', async (req, res) => {
+  try {
+    let { jql, issueTypes } = req.body;
+    if (!jql || typeof jql !== 'string' || !jql.trim()) {
+      return res.status(400).json({ error: 'JQL fehlt.' });
+    }
+    const config = readConfig();
+    const token  = getJiraToken();
+    if (!token) return res.status(400).json({ error: 'Kein API Token konfiguriert.' });
+
+    let filteredJql = jql.trim();
+    if (issueTypes?.length) {
+      const quoted = issueTypes.map(t => `"${t.replace(/"/g, '\\"')}"`).join(', ');
+      filteredJql += ` AND issuetype in (${quoted})`;
+    }
+    const statuses = await getStatusesForJql(filteredJql, config.jira, token);
+    res.json(statuses);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Preview count of committed items for a given commitment configuration
+// Body: { teamJql: string, commitment: object }
+app.post('/api/admin/jira/commitment-preview', async (req, res) => {
+  try {
+    const { teamJql, commitment } = req.body;
+    if (!teamJql || !commitment) {
+      return res.status(400).json({ error: 'teamJql und commitment sind erforderlich.' });
+    }
+    const config = readConfig();
+    const token  = getJiraToken();
+    if (!token) return res.status(400).json({ error: 'Kein API Token konfiguriert.' });
+
+    const jql = buildCommitmentJql(teamJql, commitment);
+    if (!jql) return res.status(400).json({ error: 'Ungültige Commitment-Konfiguration.' });
+
+    const count = await previewJql(jql, config.jira, token);
+    res.json({ count, jql });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Admin: Refresh ─────────────────────────────────────────────────────
 app.post('/api/admin/refresh', async (_req, res) => {
   try {
@@ -230,9 +302,14 @@ async function buildDashboardData(config) {
   const teams   = config.teams || [];
   const results = [];
 
+  // Collect any custom field IDs referenced by workItemCategories
+  const customFieldIds = (config.jira?.workItemCategories || [])
+    .filter(c => c.filter?.method === 'customField' && c.filter?.customFieldId)
+    .map(c => c.filter.customFieldId);
+
   for (const team of teams) {
     try {
-      const issues  = await fetchTeamIssues(team, config.jira, token);
+      const issues  = await fetchTeamIssues(team, config.jira, token, customFieldIds);
       const metrics = calculateTeamMetrics(issues, team, config);
       // Include which issue types were configured (for dashboard badge display)
       const effectiveTypes = team.issueTypes?.length
@@ -249,9 +326,11 @@ async function buildDashboardData(config) {
     teams: results,
     lastUpdated: new Date().toISOString(),
     iteration: config.dashboard?.iteration || 1,
+    dashboardTitle: config.dashboard?.title || 'Delivery Health Dashboard',
     refreshIntervalMinutes: config.dashboard?.refreshIntervalMinutes || 15,
     totalConfiguredTeams: teams.length,
-    jiraBaseUrl: config.jira?.baseUrl || ''
+    jiraBaseUrl: config.jira?.baseUrl || '',
+    workItemCategories: config.jira?.workItemCategories || []
   };
 }
 

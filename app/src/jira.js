@@ -136,7 +136,7 @@ async function getIssueTypes(jiraConfig, token) {
  * with changelog expanded (for Activated/Closed date extraction).
  * Paginates automatically in batches of 100.
  */
-async function fetchTeamIssues(team, jiraConfig, token) {
+async function fetchTeamIssues(team, jiraConfig, token, customFieldIds = []) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 90);
   const dateStr = cutoff.toISOString().split('T')[0];
@@ -154,7 +154,9 @@ async function fetchTeamIssues(team, jiraConfig, token) {
     const quoted = effectiveTypes.map(t => `"${t.replace(/"/g, '\\"')}"`).join(', ');
     jql += ` AND issuetype in (${quoted})`;
   }
-  const fields = 'summary,status,issuetype,created,updated';
+  const extraFields = (customFieldIds || []).filter(Boolean);
+  const fields = ['summary', 'status', 'issuetype', 'created', 'updated',
+    'labels', 'fixVersions', 'parent', ...extraFields].join(',');
 
   let allIssues = [];
   // Support both legacy (total/startAt) and new (nextPageToken/isLast) pagination
@@ -239,4 +241,37 @@ async function previewJql(jql, jiraConfig, token) {
   return (data.issues?.length ?? 0);
 }
 
-module.exports = { jiraFetch, testConnection, getStatuses, getIssueTypes, getStatusesForJql, getBoards, fetchTeamIssues, previewJql };
+/**
+ * Fetch available Labels from Jira (paginated, up to 1000).
+ * Returns string[] sorted alphabetically.
+ */
+async function getLabels(jiraConfig, token) {
+  const labels = [];
+  let startAt = 0;
+  let total = Infinity;
+  while (labels.length < total) {
+    const qs = new URLSearchParams({ startAt, maxResults: 200 });
+    const data = await jiraFetch(`/label?${qs}`, jiraConfig, token);
+    const values = data.values || [];
+    labels.push(...values);
+    total = typeof data.total === 'number' ? data.total : values.length;
+    startAt += values.length;
+    if (values.length === 0 || startAt >= total) break;
+    if (labels.length >= 1000) break; // safety cap
+  }
+  return labels.sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Fetch all custom fields from Jira.
+ * Returns [{ id, name }] sorted by name.
+ */
+async function getCustomFields(jiraConfig, token) {
+  const data = await jiraFetch('/field', jiraConfig, token);
+  return (data || [])
+    .filter(f => f.custom === true)
+    .map(f => ({ id: f.id, name: f.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+module.exports = { jiraFetch, testConnection, getStatuses, getIssueTypes, getStatusesForJql, getBoards, fetchTeamIssues, previewJql, getLabels, getCustomFields };

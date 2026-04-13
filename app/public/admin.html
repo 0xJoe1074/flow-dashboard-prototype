@@ -86,6 +86,11 @@
   .team-form.visible { display: flex; }
   .team-form h3 { font-size: 14px; font-weight: 700; color: var(--blue-dark); }
 
+  /* Info tooltip */
+  .info-icon { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; background: var(--gray-300); color: var(--gray-700); font-size: 10px; font-weight: 700; cursor: default; position: relative; margin-left: 5px; vertical-align: middle; user-select: none; }
+  .info-icon::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 7px); transform: translateX(-50%); background: #1e293b; color: #fff; font-size: 12px; font-weight: 400; line-height: 1.45; white-space: pre-line; padding: 8px 11px; border-radius: 8px; width: 260px; pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.25); }
+  .info-icon:hover::after { opacity: 1; }
+
   /* Iteration selector */
   .iter-options { display: flex; flex-direction: column; gap: 10px; }
   .iter-option { border: 2px solid var(--gray-200); border-radius: 10px; padding: 14px 18px; cursor: pointer; transition: border-color 0.15s, background 0.15s; display: flex; align-items: flex-start; gap: 12px; }
@@ -150,6 +155,15 @@
   .linked-board-chip button:hover { opacity: 1; }
   .derived-jql { font-family: monospace; font-size: 11px; color: var(--gray-700); background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 6px; padding: 8px 10px; line-height: 1.5; word-break: break-all; }
 
+  /* Category list */
+  .category-item { border: 1px solid var(--gray-200); border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; background: var(--gray-50); }
+  .cat-swatch { width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0; }
+  .cat-info { flex: 1; }
+  .cat-name { font-weight: 700; font-size: 13px; }
+  .cat-rule { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+  .color-preset { width: 20px; height: 20px; border-radius: 4px; border: 2px solid transparent; cursor: pointer; padding: 0; transition: border-color 0.12s; }
+  .color-preset:hover { border-color: var(--gray-700); }
+
   @media (max-width: 640px) {
     .field-row { grid-template-columns: 1fr; }
     .layout { padding: 16px 16px 60px; }
@@ -204,7 +218,163 @@
     </div>
   </div>
 
-  <!-- ── Section 2: Status-Mapping ───────────────────────────────── -->
+  <!-- ── Section 2: Work Item Kategorien ──────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2>📊 Work Item Kategorien <span style="font-size:12px;font-weight:400;color:var(--gray-400)">(Iteration 2+)</span></h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--gray-500);line-height:1.6">
+        Kategorien ermöglichen differenzierte Flow-Metriken: Welche Arbeit ist wertschöpfend? Wie hoch ist der Bug-Anteil?
+      </p>
+      <div class="team-list" id="categoryList">
+        <div class="team-empty" id="categoryEmpty">Noch keine Kategorien definiert.</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="addCategoryBtn">+ Kategorie hinzufügen</button>
+      </div>
+      <div class="team-form" id="categoryForm">
+        <h3 id="categoryFormTitle">Kategorie hinzufügen</h3>
+        <input type="hidden" id="categoryEditIdx" value="-1">
+        <div class="field-row">
+          <div class="field">
+            <label>Name *</label>
+            <input type="text" id="catName" placeholder="z.B. User Story">
+          </div>
+          <div class="field">
+            <label>Farbe</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="color" id="catColor" value="#3b82f6" style="width:40px;height:34px;padding:2px;border-radius:6px;border:1px solid var(--gray-300);cursor:pointer">
+              <div id="colorPresets" style="display:flex;gap:4px;flex-wrap:wrap">
+                <button type="button" class="color-preset" data-color="#3b82f6" style="background:#3b82f6"></button>
+                <button type="button" class="color-preset" data-color="#f97316" style="background:#f97316"></button>
+                <button type="button" class="color-preset" data-color="#ef4444" style="background:#ef4444"></button>
+                <button type="button" class="color-preset" data-color="#22c55e" style="background:#22c55e"></button>
+                <button type="button" class="color-preset" data-color="#7c3aed" style="background:#7c3aed"></button>
+                <button type="button" class="color-preset" data-color="#eab308" style="background:#eab308"></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="catIsValueWork" checked>
+            <span>Value Work <span style="font-size:11px;color:var(--gray-400)">(zählt zur Capacity on Value Work Metrik)</span></span>
+          </label>
+        </div>
+        <div class="field">
+          <label>Erkennungsregel <span class="info-icon" data-tip="Bestimmt, wie ein Work Item dieser Kategorie zugeordnet wird.
+
+• Nach Issue Type: nur anhand des Typs (z.B. Story)
+• Nach Label: Issue hat ein bestimmtes Jira-Label
+• Nach Custom Field: ein Feld hat einen bestimmten Wert
+
+Bei Label & Custom Field kannst du zusätzlich Issue Types einschränken → das ergibt eine UND-Bedingung (z.B. issuetype = Story AND label = ux-work).">i</span></label>
+          <div style="display:flex;gap:16px;margin-bottom:10px">
+            <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px">
+              <input type="radio" name="catMethod" value="issueType" checked> Nach Issue Type
+            </label>
+            <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px">
+              <input type="radio" name="catMethod" value="label"> Nach Label
+            </label>
+            <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px">
+              <input type="radio" name="catMethod" value="customField"> Nach Custom Field
+            </label>
+          </div>
+          <!-- issueType method -->
+          <div id="catMethodIssueType">
+            <div class="field">
+              <label>Issue Types *</label>
+              <div class="btn-row" style="margin-bottom:6px">
+                <button type="button" class="btn btn-secondary btn-sm" id="loadCatIssueTypesBtn">Issue Types aus Jira laden</button>
+              </div>
+              <div id="catIssueTypeList" class="issue-type-list"></div>
+              <small>Mindestens einen Issue Type auswählen.</small>
+            </div>
+          </div>
+          <!-- label method -->
+          <div id="catMethodLabel" style="display:none">
+            <div class="field-row">
+              <div class="field">
+                <label>Label-Wert *</label>
+                <div style="display:flex;gap:6px">
+                  <input type="text" id="catLabelValue" placeholder="z.B. user-story" list="catLabelSuggestions">
+                  <datalist id="catLabelSuggestions"></datalist>
+                  <button type="button" class="btn btn-secondary btn-sm" id="loadLabelsBtn" style="white-space:nowrap">Labels laden</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>Nur Issue Types (optional) <span class="info-icon" data-tip="UND-Bedingung: nur Work Items dieser Issue Types werden mit dem Label abgeglichen.
+
+Beispiel: Label = ux-work + Issue Type = Story → trifft nur auf Stories mit diesem Label zu.
+
+Leer lassen = gilt für alle Issue Types.">i</span></label>
+                <div class="btn-row" style="margin-bottom:6px">
+                  <button type="button" class="btn btn-secondary btn-sm" id="loadCatIssueTypesLabelBtn">Issue Types laden</button>
+                </div>
+                <div id="catIssueTypeListLabel" class="issue-type-list"></div>
+              </div>
+            </div>
+          </div>
+          <!-- customField method -->
+          <div id="catMethodCustomField" style="display:none">
+            <div class="field-row">
+              <div class="field">
+                <label>Custom Field *</label>
+                <div style="display:flex;gap:6px">
+                  <select id="catCustomFieldId" style="flex:1">
+                    <option value="">— Custom Fields laden —</option>
+                  </select>
+                  <button type="button" class="btn btn-secondary btn-sm" id="loadCustomFieldsBtn" style="white-space:nowrap">Laden</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>Wert *</label>
+                <input type="text" id="catCustomFieldValue" placeholder="z.B. Technical">
+              </div>
+            </div>
+            <div class="field">
+              <label>Nur Issue Types (optional) <span class="info-icon" data-tip="UND-Bedingung: nur Work Items dieser Issue Types werden mit dem Custom Field verglichen.
+
+Beispiel: Field = WorkType, Wert = Technical + Issue Type = Story → trifft nur auf Stories mit diesem Field-Wert zu.
+
+Leer lassen = gilt für alle Issue Types.">i</span></label>
+              <div class="btn-row" style="margin-bottom:6px">
+                <button type="button" class="btn btn-secondary btn-sm" id="loadCatIssueTypesCFBtn">Issue Types laden</button>
+              </div>
+              <div id="catIssueTypeListCF" class="issue-type-list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="saveCategoryBtn">Kategorie speichern</button>
+          <button class="btn btn-secondary" id="cancelCategoryBtn">Abbrechen</button>
+        </div>
+      </div>
+      <small style="color:var(--gray-400)">Keine Kategorien = alle Work Items zählen gleich (Iteration 1).</small>
+    </div>
+  </div>
+
+  <!-- ── Section 3: Work Item Types (global) ──────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2>📦 Work Item Types (global)</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--gray-500);line-height:1.6">
+        Welche Work Item Types sollen in den Flow-Metriken berücksichtigt werden?
+        Keine Auswahl = alle Types. Einzelne Teams können dies unten überschreiben.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-secondary btn-sm" id="loadIssueTypesBtn">Issue Types aus Jira laden</button>
+        <span id="issueTypeLoadResult" style="font-size:12px;color:var(--gray-400)"></span>
+      </div>
+      <div id="globalIssueTypeList" class="issue-type-list" style="display:none"></div>
+      <small style="color:var(--gray-400)">Keine Auswahl = alle Work Item Types werden berücksichtigt.</small>
+    </div>
+  </div>
+
+  <!-- ── Section 4: Status-Mapping ─────────────────────────────────── -->
   <div class="card">
     <div class="card-header">
       <h2>🗂 Status-Mapping (global)</h2>
@@ -213,6 +383,7 @@
       <p style="font-size:13px;color:var(--gray-500);line-height:1.6">
         Welcher Jira-Status bedeutet <strong>„Arbeit begonnen"</strong> (Activated Date) und <strong>„Abgeschlossen"</strong> (Closed Date)?
         Diese Einstellung gilt für alle Teams. Einzelne Teams können sie unten überschreiben.
+        <br><span style="font-size:12px;color:var(--blue-dark)">💡 Tipp: Zuerst Work Item Types auswählen — dann werden nur die relevanten Statuses aus Jira geladen.</span>
       </p>
       <div class="field-row">
         <div class="field">
@@ -237,26 +408,7 @@
     </div>
   </div>
 
-  <!-- ── Section 2b: Work Item Types (global) ─────────────────────── -->
-  <div class="card">
-    <div class="card-header">
-      <h2>📦 Work Item Types (global)</h2>
-    </div>
-    <div class="card-body">
-      <p style="font-size:13px;color:var(--gray-500);line-height:1.6">
-        Welche Work Item Types sollen in den Flow-Metriken berücksichtigt werden?
-        Keine Auswahl = alle Types. Einzelne Teams können dies unten überschreiben.
-      </p>
-      <div class="btn-row">
-        <button class="btn btn-secondary btn-sm" id="loadIssueTypesBtn">Issue Types aus Jira laden</button>
-        <span id="issueTypeLoadResult" style="font-size:12px;color:var(--gray-400)"></span>
-      </div>
-      <div id="globalIssueTypeList" class="issue-type-list" style="display:none"></div>
-      <small style="color:var(--gray-400)">Keine Auswahl = alle Work Item Types werden berücksichtigt.</small>
-    </div>
-  </div>
-
-  <!-- ── Section 3: Teams ─────────────────────────────────────────── -->
+  <!-- ── Section 5: Teams ───────────────────────────────────────────── -->
   <div class="card">
     <div class="card-header">
       <h2>👥 Teams</h2>
@@ -359,6 +511,80 @@
     </div>
   </div>
 
+  <!-- ── Section 6: Commitment Tracking ───────────────────────────── -->
+  <div class="card">
+    <div class="card-header">
+      <h2>🎯 Commitment Tracking <span style="font-size:12px;font-weight:400;color:var(--gray-400)">(Iteration 3)</span></h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--gray-500);line-height:1.6">
+        Wie werden <strong>committete Items</strong> in Jira markiert? Ermöglicht Q-Delivery-Progress und Pace-Projektion.
+      </p>
+      <div class="field">
+        <label>Erkennungsmethode</label>
+        <div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap">
+          <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px">
+            <input type="radio" name="commitMethod" value="" checked> Kein Commitment (Iteration 3 deaktiviert)
+          </label>
+          <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px">
+            <input type="radio" name="commitMethod" value="label"> Label
+          </label>
+          <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px">
+            <input type="radio" name="commitMethod" value="parentEpic"> Parent Epic
+          </label>
+          <label style="font-size:13px;cursor:pointer;display:flex;align-items:center;gap:5px">
+            <input type="radio" name="commitMethod" value="fixVersion"> Fix Version
+          </label>
+        </div>
+      </div>
+      <!-- label -->
+      <div id="commitMethodLabel" style="display:none">
+        <div class="field">
+          <label>Label-Wert</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="commitLabelValue" placeholder="z.B. Q2-2026-committed" list="commitLabelSuggestions">
+            <datalist id="commitLabelSuggestions"></datalist>
+            <button type="button" class="btn btn-secondary btn-sm" id="loadCommitLabelsBtn" style="white-space:nowrap">Labels laden</button>
+          </div>
+          <small>Das Jira-Label das ein Item als committed kennzeichnet.</small>
+        </div>
+      </div>
+      <!-- parentEpic -->
+      <div id="commitMethodParentEpic" style="display:none">
+        <div class="field">
+          <label>Epic-Key</label>
+          <input type="text" id="commitEpicKey" placeholder="z.B. PROJ-123">
+          <small>Alle Kind-Issues dieses Epics gelten als committed.</small>
+        </div>
+      </div>
+      <!-- fixVersion -->
+      <div id="commitMethodFixVersion" style="display:none">
+        <div class="field">
+          <label>Fix Version Name</label>
+          <input type="text" id="commitFixVersionName" placeholder="z.B. Q2 2026">
+          <small>Items mit dieser Fix Version gelten als committed.</small>
+        </div>
+      </div>
+      <!-- Quarter -->
+      <div id="commitQuarterFields" style="display:none">
+        <div class="field-row" style="margin-top:8px">
+          <div class="field">
+            <label>Quartals-Start</label>
+            <input type="date" id="commitQuarterStart">
+          </div>
+          <div class="field">
+            <label>Quartals-Ende</label>
+            <input type="date" id="commitQuarterEnd">
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:8px">
+          <button type="button" class="btn btn-secondary btn-sm" id="previewCommitBtn">Vorschau (Anzahl committed Items)</button>
+          <span id="commitPreviewResult" style="font-size:12px;color:var(--gray-500)"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ── Section 4: Dashboard-Einstellungen ─────────────────────── -->
   <div class="card">
     <div class="card-header">
@@ -384,19 +610,20 @@
             </div>
           </label>
           <label class="iter-option" id="iter2opt">
-            <input type="radio" name="iteration" value="2">
+            <input type="radio" name="iteration" value="2" id="iter2radio">
             <div class="iter-option-content">
               <div class="iter-option-title">Iteration 2 — + Work Item Types</div>
               <div class="iter-option-desc">Zusätzlich: Capacity on Value Work, Bug-Mix, Type-Breakdown</div>
               <div class="iter-option-reqs">
                 <span class="req-chip req-available">✓ Activated Date</span>
                 <span class="req-chip req-available">✓ Closed Date</span>
-                <span class="req-chip req-available">✓ Work Item Type</span>
+                <span class="req-chip req-available" id="iter2TypeChip">✓ Work Item Type / Kategorien</span>
               </div>
+              <div id="iter2LockHint" style="display:none;font-size:11px;color:var(--yellow);margin-top:4px">⚠ Work Item Kategorien oder Issue Types definieren um Iteration 2 zu aktivieren.</div>
             </div>
           </label>
-          <label class="iter-option locked" id="iter3opt">
-            <input type="radio" name="iteration" value="3" disabled>
+          <label class="iter-option" id="iter3opt">
+            <input type="radio" name="iteration" value="3" id="iter3radio" disabled>
             <div class="iter-option-content">
               <div class="iter-option-title">Iteration 3 — + Commitment Tracking</div>
               <div class="iter-option-desc">Zusätzlich: Q-Delivery Progress, Scope Changes, Pace Projection</div>
@@ -404,8 +631,9 @@
                 <span class="req-chip req-available">✓ Activated Date</span>
                 <span class="req-chip req-available">✓ Closed Date</span>
                 <span class="req-chip req-available">✓ Work Item Type</span>
-                <span class="req-chip req-missing">✗ Commit-Tags (z.B. Q2-2026-committed)</span>
+                <span class="req-chip" id="iter3CommitChip">✗ Commit-Tags konfigurieren</span>
               </div>
+              <div id="iter3LockHint" style="font-size:11px;color:var(--yellow);margin-top:4px">⚠ Commitment Tracking konfigurieren um Iteration 3 zu aktivieren.</div>
             </div>
           </label>
         </div>
@@ -496,6 +724,7 @@ let statuses = [];
 let issueTypes = [];
 let editingTeamId = null;
 let linkedBoards = []; // boards linked to the team currently being edited
+let categories = []; // workItemCategories
 
 // ── Board helpers ──────────────────────────────────────────────────────
 function getEffectiveJql() {
@@ -667,6 +896,12 @@ async function loadConfig() {
       renderIssueTypeList('globalIssueTypeList', savedGlobalTypes, savedGlobalTypes);
       document.getElementById('globalIssueTypeList').style.display = 'flex';
     }
+    // Restore work item categories
+    categories = config.jira?.workItemCategories || [];
+    renderCategories();
+    // Restore commitment configuration
+    restoreCommitmentUI(config.jira?.commitment || null);
+    updateIterationLocks();
   } catch (e) {
     showToast('Konfiguration konnte nicht geladen werden: ' + e.message, 'err');
   }
@@ -741,9 +976,23 @@ document.getElementById('loadStatusesBtn').addEventListener('click', async () =>
   btn.disabled = true; btn.textContent = 'Laden…';
   const info = document.getElementById('statusLoadResult');
   try {
-    const res  = await fetch('/api/admin/jira/statuses');
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
+    // Use issue-type-filtered endpoint if types are selected, otherwise global
+    const selectedTypes = getSelectedIssueTypes('globalIssueTypeList');
+    let data;
+    if (selectedTypes.length > 0) {
+      // We need a broad JQL — use the first team's JQL or a catch-all
+      const baseJql = teams.length ? teams[0].jql : 'project is not EMPTY';
+      const res = await fetch('/api/admin/jira/statuses-for-types', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jql: baseJql, issueTypes: selectedTypes })
+      });
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+    } else {
+      const res  = await fetch('/api/admin/jira/statuses');
+      data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+    }
     statuses = data;
     info.textContent = `${statuses.length} Status-Werte geladen.`;
     populateStatusSelects();
@@ -1160,7 +1409,9 @@ async function saveConfig(silent = false) {
       email:   document.getElementById('jiraEmail').value.trim(),
       defaultActiveStatus: document.getElementById('defaultActiveStatus').value,
       defaultDoneStatus:   document.getElementById('defaultDoneStatus').value,
-      defaultIssueTypes:   [...new Set(getSelectedIssueTypes('globalIssueTypeList'))]
+      defaultIssueTypes:   [...new Set(getSelectedIssueTypes('globalIssueTypeList'))],
+      workItemCategories:  categories,
+      commitment:          buildCommitmentObject()
     },
     dashboard: {
       title: document.getElementById('dashboardTitle').value.trim() || 'Delivery Health Dashboard',
@@ -1236,6 +1487,341 @@ function showToast(msg, type = 'ok') {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.classList.remove('show'); }, 4000);
 }
+
+// ── Work Item Kategorien ───────────────────────────────────────────────
+
+function renderCategories() {
+  const list = document.getElementById('categoryList');
+  list.innerHTML = '';
+  if (!categories.length) {
+    list.innerHTML = '<div class="team-empty">Keine Kategorien konfiguriert — alle Work Items werden gleich behandelt (Iteration 1).</div>';
+  } else {
+    categories.forEach((cat, idx) => {
+      const div = document.createElement('div');
+      div.className = 'category-item';
+      const rule = cat.filter?.method === 'issueType'
+        ? `Issue Type: ${(cat.filter.issueTypes || []).join(', ') || '—'}`
+        : cat.filter?.method === 'label'
+          ? `Label: ${cat.filter.labelValue || '—'}` + (cat.filter.issueTypes?.length ? ` · Types: ${cat.filter.issueTypes.join(', ')}` : '')
+          : cat.filter?.method === 'customField'
+            ? `Field: ${cat.filter.customFieldId} = ${cat.filter.customFieldValue || '—'}`
+            : '—';
+      div.innerHTML = `
+        <div class="cat-swatch" style="background:${escHtml(cat.color || '#9ca3af')}"></div>
+        <div class="cat-info">
+          <div class="cat-name">${escHtml(cat.name)}</div>
+          <div class="cat-rule">${escHtml(rule)} &nbsp;·&nbsp; ${cat.isValueWork ? 'Value Work ✓' : 'Nicht-Value Work'}</div>
+        </div>
+        <div class="team-item-actions">
+          <button class="btn btn-secondary btn-sm" onclick="startEditCategory(${idx})">Bearbeiten</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteCategory(${idx})">Löschen</button>
+        </div>
+      `;
+      list.appendChild(div);
+    });
+  }
+  updateIterationLocks();
+}
+
+document.getElementById('addCategoryBtn').addEventListener('click', () => {
+  document.getElementById('categoryEditIdx').value = '-1';
+  document.getElementById('categoryFormTitle').textContent = 'Kategorie hinzufügen';
+  document.getElementById('catName').value = '';
+  document.getElementById('catColor').value = '#3b82f6';
+  document.getElementById('catIsValueWork').checked = true;
+  document.querySelector('input[name="catMethod"][value="issueType"]').checked = true;
+  document.getElementById('catIssueTypeList').innerHTML = '';
+  document.getElementById('catIssueTypeListLabel').innerHTML = '';
+  document.getElementById('catIssueTypeListCF').innerHTML = '';
+  document.getElementById('catLabelValue').value = '';
+  document.getElementById('catCustomFieldId').value = '';
+  document.getElementById('catCustomFieldValue').value = '';
+  switchCatMethod('issueType');
+  document.getElementById('categoryForm').classList.add('visible');
+  document.getElementById('addCategoryBtn').style.display = 'none';
+});
+
+function startEditCategory(idx) {
+  const cat = categories[idx];
+  if (!cat) return;
+  document.getElementById('categoryEditIdx').value = idx;
+  document.getElementById('categoryFormTitle').textContent = 'Kategorie bearbeiten';
+  document.getElementById('catName').value = cat.name || '';
+  document.getElementById('catColor').value = cat.color || '#3b82f6';
+  document.getElementById('catIsValueWork').checked = cat.isValueWork !== false;
+  const method = cat.filter?.method || 'issueType';
+  document.querySelector(`input[name="catMethod"][value="${method}"]`).checked = true;
+  switchCatMethod(method);
+
+  if (method === 'issueType') {
+    renderIssueTypeList('catIssueTypeList', cat.filter?.issueTypes || [], cat.filter?.issueTypes || []);
+  } else if (method === 'label') {
+    document.getElementById('catLabelValue').value = cat.filter?.labelValue || '';
+    renderIssueTypeList('catIssueTypeListLabel', cat.filter?.issueTypes || [], cat.filter?.issueTypes || []);
+  } else if (method === 'customField') {
+    if (cat.filter?.customFieldId) {
+      const opt = new Option(`${cat.filter.customFieldId}`, cat.filter.customFieldId);
+      const sel = document.getElementById('catCustomFieldId');
+      if (![...sel.options].find(o => o.value === cat.filter.customFieldId)) sel.appendChild(opt);
+      sel.value = cat.filter.customFieldId;
+    }
+    document.getElementById('catCustomFieldValue').value = cat.filter?.customFieldValue || '';
+    renderIssueTypeList('catIssueTypeListCF', cat.filter?.issueTypes || [], cat.filter?.issueTypes || []);
+  }
+  document.getElementById('categoryForm').classList.add('visible');
+  document.getElementById('addCategoryBtn').style.display = 'none';
+}
+
+function deleteCategory(idx) {
+  const cat = categories[idx];
+  if (!cat || !confirm(`Kategorie "${cat.name}" wirklich löschen?`)) return;
+  categories.splice(idx, 1);
+  renderCategories();
+}
+
+document.getElementById('cancelCategoryBtn').addEventListener('click', () => {
+  document.getElementById('categoryForm').classList.remove('visible');
+  document.getElementById('addCategoryBtn').style.display = '';
+});
+
+document.getElementById('saveCategoryBtn').addEventListener('click', () => {
+  const name  = document.getElementById('catName').value.trim();
+  const color = document.getElementById('catColor').value;
+  const isValueWork = document.getElementById('catIsValueWork').checked;
+  const method = document.querySelector('input[name="catMethod"]:checked')?.value || 'issueType';
+  if (!name) { showToast('Name ist Pflichtfeld.', 'err'); return; }
+
+  let filter;
+  if (method === 'issueType') {
+    const types = getSelectedIssueTypes('catIssueTypeList');
+    if (!types.length) { showToast('Mindestens einen Issue Type auswählen.', 'err'); return; }
+    filter = { method: 'issueType', issueTypes: types };
+  } else if (method === 'label') {
+    const val = document.getElementById('catLabelValue').value.trim();
+    if (!val) { showToast('Label-Wert eingeben.', 'err'); return; }
+    const types = getSelectedIssueTypes('catIssueTypeListLabel');
+    filter = { method: 'label', labelValue: val, issueTypes: types };
+  } else {
+    const fieldId = document.getElementById('catCustomFieldId').value;
+    const fieldVal = document.getElementById('catCustomFieldValue').value.trim();
+    if (!fieldId) { showToast('Custom Field auswählen.', 'err'); return; }
+    if (!fieldVal) { showToast('Wert für das Custom Field eingeben.', 'err'); return; }
+    const types = getSelectedIssueTypes('catIssueTypeListCF');
+    filter = { method: 'customField', customFieldId: fieldId, customFieldValue: fieldVal, issueTypes: types };
+  }
+
+  const entry = { name, color, isValueWork, filter };
+  const idx = parseInt(document.getElementById('categoryEditIdx').value);
+  if (idx >= 0) categories[idx] = entry;
+  else categories.push(entry);
+
+  renderCategories();
+  document.getElementById('categoryForm').classList.remove('visible');
+  document.getElementById('addCategoryBtn').style.display = '';
+});
+
+// Switch visible category method panels
+function switchCatMethod(method) {
+  ['issueType', 'label', 'customField'].forEach(m => {
+    const panel = document.getElementById('catMethod' + m.charAt(0).toUpperCase() + m.slice(1));
+    if (panel) panel.style.display = m === method ? '' : 'none';
+  });
+}
+document.querySelectorAll('input[name="catMethod"]').forEach(r => {
+  r.addEventListener('change', () => switchCatMethod(r.value));
+});
+
+// Color presets
+document.querySelectorAll('.color-preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('catColor').value = btn.dataset.color;
+  });
+});
+
+// Load labels into datalist
+async function loadLabelsIntoDatalist(datalistId) {
+  try {
+    const res = await fetch('/api/admin/jira/labels');
+    if (!res.ok) throw new Error((await res.json()).error);
+    const labels = await res.json();
+    const dl = document.getElementById(datalistId);
+    dl.innerHTML = labels.map(l => `<option value="${escHtml(l)}">`).join('');
+    showToast(`${labels.length} Labels geladen.`, 'ok');
+  } catch (e) {
+    showToast('Labels konnten nicht geladen werden: ' + e.message, 'err');
+  }
+}
+document.getElementById('loadLabelsBtn').addEventListener('click', () => loadLabelsIntoDatalist('catLabelSuggestions'));
+
+// Load custom fields into select
+document.getElementById('loadCustomFieldsBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('loadCustomFieldsBtn');
+  btn.disabled = true; btn.textContent = 'Laden…';
+  try {
+    const res  = await fetch('/api/admin/jira/fields');
+    if (!res.ok) throw new Error((await res.json()).error);
+    const fields = await res.json();
+    const sel = document.getElementById('catCustomFieldId');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— auswählen —</option>';
+    fields.forEach(f => {
+      const opt = new Option(`${f.name} (${f.id})`, f.id);
+      sel.appendChild(opt);
+    });
+    if (cur) sel.value = cur;
+    showToast(`${fields.length} Custom Fields geladen.`, 'ok');
+  } catch (e) {
+    showToast('Custom Fields konnten nicht geladen werden: ' + e.message, 'err');
+  }
+  btn.disabled = false; btn.textContent = 'Laden';
+});
+
+// Helper: load issue types into a category method panel
+async function loadCatIssueTypes(containerId) {
+  try {
+    const res  = await fetch('/api/admin/jira/issuetypes');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    const names = data.map(t => t.name);
+    const cur = getSelectedIssueTypes(containerId);
+    renderIssueTypeList(containerId, names, cur);
+  } catch (e) {
+    showToast('Issue Types konnten nicht geladen werden: ' + e.message, 'err');
+  }
+}
+document.getElementById('loadCatIssueTypesBtn').addEventListener('click', () => loadCatIssueTypes('catIssueTypeList'));
+document.getElementById('loadCatIssueTypesLabelBtn').addEventListener('click', () => loadCatIssueTypes('catIssueTypeListLabel'));
+document.getElementById('loadCatIssueTypesCFBtn').addEventListener('click', () => loadCatIssueTypes('catIssueTypeListCF'));
+
+// ── Commitment Tracking ────────────────────────────────────────────────
+
+function switchCommitMethod(method) {
+  ['Label', 'ParentEpic', 'FixVersion'].forEach(m => {
+    const panel = document.getElementById('commitMethod' + m);
+    if (panel) panel.style.display = (method && m.toLowerCase().replace('parentepic', 'parentEpic').toLowerCase() === method.toLowerCase()) ? '' : 'none';
+  });
+  const quarterFields = document.getElementById('commitQuarterFields');
+  if (quarterFields) quarterFields.style.display = method ? '' : 'none';
+  // Update iter3 lock whenever commitment method changes
+  updateIterationLocks();
+}
+
+// Better switchCommitMethod using exact mapping
+function updateCommitMethodPanels() {
+  const method = document.querySelector('input[name="commitMethod"]:checked')?.value || '';
+  document.getElementById('commitMethodLabel').style.display      = method === 'label'       ? '' : 'none';
+  document.getElementById('commitMethodParentEpic').style.display = method === 'parentEpic'  ? '' : 'none';
+  document.getElementById('commitMethodFixVersion').style.display = method === 'fixVersion'  ? '' : 'none';
+  document.getElementById('commitQuarterFields').style.display    = method               ? '' : 'none';
+  updateIterationLocks();
+}
+
+document.querySelectorAll('input[name="commitMethod"]').forEach(r => {
+  r.addEventListener('change', updateCommitMethodPanels);
+});
+
+document.getElementById('loadCommitLabelsBtn').addEventListener('click',
+  () => loadLabelsIntoDatalist('commitLabelSuggestions'));
+
+document.getElementById('previewCommitBtn').addEventListener('click', async () => {
+  const method = document.querySelector('input[name="commitMethod"]:checked')?.value || '';
+  if (!method) { showToast('Bitte Commitment-Methode wählen.', 'err'); return; }
+  // Use the first team's JQL as preview base, or fall back to all issues
+  const previewTeamJql = teams.length ? teams[0].jql : 'project is not EMPTY';
+  const commitment = buildCommitmentObject();
+  if (!commitment) { showToast('Commitment-Details ausfüllen.', 'err'); return; }
+  const btn = document.getElementById('previewCommitBtn');
+  const result = document.getElementById('commitPreviewResult');
+  btn.disabled = true; result.textContent = 'Lade…';
+  try {
+    const res = await fetch('/api/admin/jira/commitment-preview', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamJql: previewTeamJql, commitment })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    result.innerHTML = `<span style="color:#16a34a;font-weight:700">✓ ${data.count} committed Items (Team 1 als Basis)</span>`;
+  } catch (e) {
+    result.innerHTML = `<span style="color:#dc2626">✗ ${escHtml(e.message)}</span>`;
+  }
+  btn.disabled = false;
+});
+
+function buildCommitmentObject() {
+  const method = document.querySelector('input[name="commitMethod"]:checked')?.value || '';
+  if (!method) return null;
+  const obj = {
+    method,
+    quarterStart: document.getElementById('commitQuarterStart').value || null,
+    quarterEnd:   document.getElementById('commitQuarterEnd').value   || null
+  };
+  if (method === 'label')       obj.labelValue      = document.getElementById('commitLabelValue').value.trim();
+  if (method === 'parentEpic')  obj.epicKey         = document.getElementById('commitEpicKey').value.trim();
+  if (method === 'fixVersion')  obj.fixVersionName  = document.getElementById('commitFixVersionName').value.trim();
+  return obj;
+}
+
+function restoreCommitmentUI(commitment) {
+  if (!commitment?.method) {
+    document.querySelector('input[name="commitMethod"][value=""]').checked = true;
+    updateCommitMethodPanels();
+    return;
+  }
+  const radio = document.querySelector(`input[name="commitMethod"][value="${commitment.method}"]`);
+  if (radio) radio.checked = true;
+  updateCommitMethodPanels();
+  if (commitment.labelValue)     document.getElementById('commitLabelValue').value     = commitment.labelValue;
+  if (commitment.epicKey)        document.getElementById('commitEpicKey').value        = commitment.epicKey;
+  if (commitment.fixVersionName) document.getElementById('commitFixVersionName').value = commitment.fixVersionName;
+  if (commitment.quarterStart)   document.getElementById('commitQuarterStart').value   = commitment.quarterStart;
+  if (commitment.quarterEnd)     document.getElementById('commitQuarterEnd').value     = commitment.quarterEnd;
+}
+
+// ── Iteration Lock Logic ───────────────────────────────────────────────
+
+function updateIterationLocks() {
+  // Iter 2: unlocked if categories defined OR issue types selected
+  const hasCategories   = categories.length > 0;
+  const hasIssueTypes   = (document.getElementById('globalIssueTypeList')?.querySelectorAll('input:checked').length || 0) > 0;
+  const iter2Available  = hasCategories || hasIssueTypes;
+  const iter2radio = document.getElementById('iter2radio');
+  const iter2opt   = document.getElementById('iter2opt');
+  const iter2hint  = document.getElementById('iter2LockHint');
+  if (iter2radio) { iter2radio.disabled = false; } // always enabled now — but show hint
+  if (iter2opt)   { iter2opt.classList.toggle('locked', !iter2Available); }
+  if (iter2radio && !iter2Available) {
+    // Don't force-uncheck if already on 2
+  }
+  if (iter2hint)  { iter2hint.style.display = iter2Available ? 'none' : ''; }
+
+  // Iter 3: unlocked only if commitment method is configured
+  const commitMethod   = document.querySelector('input[name="commitMethod"]:checked')?.value || '';
+  const iter3Available = !!commitMethod;
+  const iter3radio = document.getElementById('iter3radio');
+  const iter3opt   = document.getElementById('iter3opt');
+  const iter3hint  = document.getElementById('iter3LockHint');
+  const iter3chip  = document.getElementById('iter3CommitChip');
+  if (iter3radio) { iter3radio.disabled = !iter3Available; }
+  if (iter3opt)   { iter3opt.classList.toggle('locked', !iter3Available); }
+  if (iter3hint)  { iter3hint.style.display = iter3Available ? 'none' : ''; }
+  if (iter3chip)  {
+    iter3chip.className = 'req-chip ' + (iter3Available ? 'req-available' : 'req-missing');
+    iter3chip.textContent = iter3Available ? `✓ Commit-Methode: ${commitMethod}` : '✗ Commit-Tags konfigurieren';
+  }
+  // If iter3 became unavailable and is currently selected, fall back to iter 2
+  if (!iter3Available && iter3radio?.checked) {
+    const radio1 = document.querySelector('input[name="iteration"][value="1"]');
+    if (radio1) {
+      radio1.checked = true;
+      document.querySelectorAll('.iter-option').forEach(el => el.classList.remove('selected'));
+      radio1.closest('.iter-option')?.classList.add('selected');
+    }
+  }
+}
+
+// ── Statuses with type filter ──────────────────────────────────────────
+// The loadStatusesBtn listener below replaces the old one and passes
+// selected issue types to the filtered endpoint when available.
 
 // ── Start ──────────────────────────────────────────────────────────────
 init();

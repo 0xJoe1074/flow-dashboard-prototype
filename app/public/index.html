@@ -219,7 +219,7 @@
   <div class="kpi-strip" id="kpiStrip"></div>
   <div class="table-container">
     <table>
-      <thead>
+      <thead id="teamTableHead">
         <tr>
           <th class="sortable" onclick="sortTable('name')">Team</th>
           <th class="sortable" onclick="sortTable('avgTp')">
@@ -314,6 +314,8 @@ let currentTeamData = null;
 let refreshTimer = null;
 let scatterDots = []; // [{cx, cy, key, ct}]
 let wipAgingBars = []; // [{x, y, w, h, key, age}]
+window._dashIteration = 1;
+window._workItemCategories = [];
 
 // ── Boot ───────────────────────────────────────────────────────────────
 (async function boot() {
@@ -334,6 +336,8 @@ async function loadDashboard() {
     }
 
     allTeams = (data.teams || []).map(t => ({ ...t, jiraBaseUrl: data.jiraBaseUrl || '' }));
+    window._dashIteration = data.iteration || 1;
+    window._workItemCategories = data.workItemCategories || [];
 
     // Update UI chrome
     updateIterBadge(data.iteration);
@@ -405,6 +409,7 @@ function updateCacheIndicator(lastUpdated, fromCache) {
 // ── Table ──────────────────────────────────────────────────────────────
 function renderTable(buFilter) {
   const tbody = document.getElementById('teamTableBody');
+  const iter  = window._dashIteration || 1;
   let rows = buFilter === 'all' ? [...allTeams] : allTeams.filter(t => t.bu === buFilter);
 
   if (currentSort.key) {
@@ -416,6 +421,20 @@ function renderTable(buFilter) {
     });
   }
 
+  // Update dynamic table header
+  const thead = document.getElementById('teamTableHead');
+  if (thead) {
+    thead.innerHTML = `<tr>
+      <th class="sortable" onclick="sortTable('name')">Team</th>
+      <th class="sortable" onclick="sortTable('avgTp')">Throughput</th>
+      <th class="sortable" onclick="sortTable('p85')">Cycle Time (P85 SLE)</th>
+      <th class="sortable" onclick="sortTable('wipCount')">WIP &amp; Alter</th>
+      <th class="sortable" onclick="sortTable('flowRatio')">Flow Balance</th>
+      ${iter >= 2 ? '<th>Work Item Mix</th><th class="sortable" onclick="sortTable(\'capacityOnValueWork\')">Capacity on Value Work</th>' : ''}
+      ${iter >= 3 ? '<th class="sortable" onclick="sortTable(\'_commitPct\')">Q-Delivery Progress</th>' : ''}
+    </tr>`;
+  }
+
   renderKpis(rows);
   tbody.innerHTML = '';
 
@@ -424,7 +443,7 @@ function renderTable(buFilter) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><div class="team-name">${esc(t.name)}</div><div class="team-bu">${esc(t.bu || '')}</div></td>
-        <td colspan="4" style="color:#dc2626;font-size:13px">⚠ Fehler: ${esc(t.error)}</td>
+        <td colspan="${4 + (iter >= 2 ? 2 : 0) + (iter >= 3 ? 1 : 0)}" style="color:#dc2626;font-size:13px">⚠ Fehler: ${esc(t.error)}</td>
       `;
       tbody.appendChild(tr);
       return;
@@ -447,6 +466,8 @@ function renderTable(buFilter) {
       <td>${cycleTimeCell(t)}</td>
       <td>${wipCell(t)}</td>
       <td>${flowCell(t)}</td>
+      ${iter >= 2 ? `<td>${workItemMixCell(t)}</td><td>${capacityCell(t)}</td>` : ''}
+      ${iter >= 3 ? `<td>${commitmentCell(t)}</td>` : ''}
     `;
     tbody.appendChild(tr);
   });
@@ -521,6 +542,50 @@ function renderKpis(teams) {
       <div class="kpi-sub">${flowLabel} · ${critTeams} kritisch</div>
     </div>
   `;
+
+  // ── Iteration 2 KPIs ──────────────────────────────────────────────
+  if ((window._dashIteration || 1) >= 2) {
+    const iter2valid = valid.filter(t => t.capacityOnValueWork !== undefined);
+    if (iter2valid.length) {
+      const avgCapacity = Math.round(iter2valid.reduce((s, t) => s + (t.capacityOnValueWork || 0), 0) / iter2valid.length);
+      const capColor    = avgCapacity >= 70 ? 'var(--green)' : avgCapacity >= 50 ? 'var(--yellow)' : 'var(--red)';
+      const netBugs     = iter2valid.reduce((s, t) => s + (t.netBugFlow || 0), 0);
+      const bugColor    = netBugs <= 0 ? 'var(--green)' : netBugs <= 3 ? 'var(--yellow)' : 'var(--red)';
+      strip.innerHTML += `
+        <div class="kpi-card">
+          <div class="kpi-label">Capacity on Value Work</div>
+          <div class="kpi-value" style="color:${capColor}">${avgCapacity}%</div>
+          <div class="kpi-sub">Ø über ${iter2valid.length} Teams (4W)</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Net Bug Flow <span class="info-btn">i<span class="tooltip">Neue Bugs − behobene Bugs (letzte 4W).\n≤ 0 = Qualität verbessert/stabil.\n&gt; 0 = Bug-Schulden wachsen.</span></span></div>
+          <div class="kpi-value" style="color:${bugColor}">${netBugs > 0 ? '+' : ''}${netBugs}</div>
+          <div class="kpi-sub">Portfolio · letzte 4 Wochen</div>
+        </div>
+      `;
+    }
+  }
+
+  // ── Iteration 3 KPIs ──────────────────────────────────────────────
+  if ((window._dashIteration || 1) >= 3) {
+    const iter3valid = valid.filter(t => t.commitmentProgress);
+    if (iter3valid.length) {
+      const totalCommitted = iter3valid.reduce((s, t) => s + (t.commitmentProgress.committed || 0), 0);
+      const totalDone      = iter3valid.reduce((s, t) => s + (t.commitmentProgress.done     || 0), 0);
+      const portPct        = totalCommitted > 0 ? Math.round((totalDone / totalCommitted) * 100) : 0;
+      const onTrack  = iter3valid.filter(t => t.commitmentProgress.paceStatus === 'on-track').length;
+      const atRisk   = iter3valid.filter(t => t.commitmentProgress.paceStatus === 'at-risk').length;
+      const offTrack = iter3valid.filter(t => t.commitmentProgress.paceStatus === 'off-track').length;
+      const portColor = offTrack > 0 ? 'var(--red)' : atRisk > 0 ? 'var(--yellow)' : 'var(--green)';
+      strip.innerHTML += `
+        <div class="kpi-card">
+          <div class="kpi-label">Q-Delivery Progress</div>
+          <div class="kpi-value" style="color:${portColor}">${portPct}%</div>
+          <div class="kpi-sub">${totalDone} / ${totalCommitted} &nbsp;·&nbsp; ✓ ${onTrack} · ⚠ ${atRisk} · ✗ ${offTrack}</div>
+        </div>
+      `;
+    }
+  }
 }
 
 // ── Cell renderers ─────────────────────────────────────────────────────
@@ -577,6 +642,54 @@ function flowCell(t) {
       <div style="font-size:11px;color:var(--gray-400)">↑ ${arr}/W ankommen</div>
       <div style="font-size:11px;color:var(--gray-400)">↓ ${dep}/W abgeschlossen</div>
     </div>
+  </div>`;
+}
+
+// ── Iteration 2 cell renderers ──────────────────────────────────────────
+function workItemMixCell(t) {
+  const mix = t.workItemMix || [];
+  if (!mix.length) return '<span style="font-size:12px;color:var(--gray-400)">—</span>';
+  const total = mix.reduce((s, m) => s + m.count, 0) || 1;
+  const bars = mix.map(m =>
+    `<div title="${esc(m.name)}: ${m.count} (${m.pct}%)" style="display:inline-block;height:14px;width:${m.pct}%;background:${esc(m.color || '#9ca3af')};min-width:3px"></div>`
+  ).join('');
+  const labels = mix.slice(0, 3).map(m =>
+    `<span style="font-size:10px;color:${esc(m.color || '#9ca3af')};font-weight:600">${esc(m.name.replace('Story','').trim() || m.name)}: ${m.pct}%</span>`
+  ).join(' · ');
+  return `<div>
+    <div style="display:flex;border-radius:4px;overflow:hidden;height:14px;background:var(--gray-100)">${bars}</div>
+    <div style="margin-top:3px">${labels}</div>
+  </div>`;
+}
+
+function capacityCell(t) {
+  const pct = t.capacityOnValueWork ?? null;
+  if (pct === null) return '<span style="font-size:12px;color:var(--gray-400)">—</span>';
+  const color = pct >= 70 ? 'var(--green)' : pct >= 50 ? 'var(--yellow)' : 'var(--red)';
+  const label = pct >= 70 ? 'Gut' : pct >= 50 ? 'Ok' : 'Niedrig';
+  return `<div style="text-align:center">
+    <div style="font-size:22px;font-weight:700;color:${color}">${pct}%</div>
+    <div style="font-size:11px;color:var(--gray-400)">${label} · Value Work</div>
+    ${t.netBugFlow !== undefined ? `<div style="font-size:11px;color:${t.netBugFlow > 0 ? 'var(--red)' : 'var(--green)'}">Net Bugs: ${t.netBugFlow > 0 ? '+' : ''}${t.netBugFlow}</div>` : ''}
+  </div>`;
+}
+
+// ── Iteration 3 cell renderer ───────────────────────────────────────────
+function commitmentCell(t) {
+  const cp = t.commitmentProgress;
+  if (!cp) return '<span style="font-size:12px;color:var(--gray-400)">—</span>';
+  const pct = cp.committed > 0 ? Math.round((cp.done / cp.committed) * 100) : 0;
+  const statusColors = { 'on-track': 'var(--green)', 'at-risk': 'var(--yellow)', 'off-track': 'var(--red)', 'unknown': 'var(--gray-400)' };
+  const statusLabels = { 'on-track': 'On Track', 'at-risk': 'At Risk', 'off-track': 'Off Track', 'unknown': '?' };
+  const color = statusColors[cp.paceStatus] || 'var(--gray-400)';
+  const label = statusLabels[cp.paceStatus] || cp.paceStatus;
+  return `<div>
+    <div style="display:flex;align-items:baseline;gap:5px">
+      <span style="font-size:20px;font-weight:700;color:${color}">${pct}%</span>
+      <span style="font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;background:${color}22;color:${color}">${esc(label)}</span>
+    </div>
+    <div style="font-size:11px;color:var(--gray-400)">${cp.done} / ${cp.committed} done</div>
+    ${cp.paceProjected !== null ? `<div style="font-size:10px;color:var(--gray-400)">Prognose: ${cp.paceProjected} Items</div>` : ''}
   </div>`;
 }
 

@@ -1,13 +1,38 @@
 {
   "jira": {
-    "baseUrl": "https://infoniqa.atlassian.net",
-    "email": "joerg.lindemann@brz.eu",
-    "defaultActiveStatus": "In Progress",
+    "baseUrl": "https://hub-prodtech.atlassian.net/",
+    "email": "tuncay.abaci@hamburger-software.de",
+    "defaultActiveStatus": "Selected for Development",
     "defaultDoneStatus": "Done",
     "defaultIssueTypes": [
       "Bug",
       "Story"
-    ]
+    ],
+    "workItemCategories": [
+      {
+        "name": "Story",
+        "color": "#3b82f6",
+        "isValueWork": true,
+        "filter": {
+          "method": "issueType",
+          "issueTypes": [
+            "Story"
+          ]
+        }
+      },
+      {
+        "name": "Bug",
+        "color": "#ef4444",
+        "isValueWork": false,
+        "filter": {
+          "method": "issueType",
+          "issueTypes": [
+            "Bug"
+          ]
+        }
+      }
+    ],
+    "commitment": null
   },
   "dashboard": {
     "title": "Delivery Health Dashboard",
@@ -19,36 +44,25 @@
       "id": "44c39666-8108-46f4-afe0-64e9321a8a86",
       "name": "Orbit",
       "businessUnit": "Infoniqa Orbit",
-      "boards": [
-        {"id": 3525, "name": "Orbit", "jql": "project = PI AND (component IN (\"Orbit UI\", \"Orbit Backend (Center Services)\", InfoniqaID) OR component = EMPTY)"}
-      ],
       "jql": "project = PI AND (component IN (\"Orbit UI\", \"Orbit Backend (Center Services)\", InfoniqaID) OR component = EMPTY)",
       "activeStatus": "In Development",
       "doneStatus": "DONE"
     },
     {
-      "id": "4884a477-50ed-41bb-9559-6c6d0059fbfb",
-      "name": "DEV P365 - API Team",
-      "businessUnit": "DEV P365",
-      "jql": "project = DP365 AND \"Team[Team]\" = 40a019b7-a623-40a5-864c-eccb605bdcaf",
-      "activeStatus": "DEV Development",
-      "doneStatus": "Closed"
+      "id": "17533043-4205-490e-baba-15008bdd81de",
+      "name": "DEVHCM Dev Board",
+      "businessUnit": "DEV HCM",
+      "jql": "project = DEVHCM",
+      "activeStatus": null,
+      "doneStatus": null
     },
     {
-      "id": "3ef1bbda-3682-42c9-9478-e5dd27bfafa0",
-      "name": "DEV P365 - Connect Team",
-      "businessUnit": "DEV P365",
-      "jql": "project = DP365 AND \"Team[Team]\" = dd0e0fc0-4348-4b46-ad25-f67dad3599b7",
-      "activeStatus": "DEV Development",
-      "doneStatus": "Closed"
-    },
-    {
-      "id": "a28666f9-d570-4110-92a3-7742a9eedcf2",
-      "name": "DEV P365 - Core",
-      "businessUnit": "DEV P365",
-      "jql": "project = DP365 AND \"team[team]\" = 14be5654-3451-4d0f-bb7e-b61d28442a24",
-      "activeStatus": "DEV Development",
-      "doneStatus": "Closed"
+      "id": "13ef0c92-6ae7-4486-88fa-d0a6db945f71",
+      "name": "PERVIEW - DEV (Kanban)",
+      "businessUnit": "perview software development",
+      "jql": "project in (10117) AND (resolutiondate >= startOfMonth(-24) or resolution is empty)",
+      "activeStatus": null,
+      "doneStatus": null
     }
   ]
 }
