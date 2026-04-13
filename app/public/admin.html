@@ -251,6 +251,22 @@
           <small>Schutzt den Admin-Bereich. Standard: OKR3.2</small>
         </div>
       </div>
+      <div class="field" style="max-width:220px">
+        <label>Daten ab Datum <span class="info-icon" data-tip="Nur Datenpunkte ab diesem Datum fließen ins Dashboard ein (Activated Date / Closed Date).&#10;&#10;Nützlich um Migrations-Artefakte auszublenden — z.B. alle Daten vor dem Go-Live ignorieren.">i</span></label>
+        <input type="date" id="dataStartDate" style="max-width:200px">
+        <small>Leer = alle verfügbaren Daten werden verwendet.</small>
+      </div>
+      <div class="field" style="max-width:220px">
+        <label>Analyse-Zeitraum <span class="info-icon" data-tip="Wie viele Wochen rückwirkend für Throughput, Cycle Time und Flow Balance ausgewertet werden.&#10;&#10;12W = Standard (empfohlen). Kürzere Zeiträume reagieren schneller auf Veränderungen, längere sind stabiler.">i</span></label>
+        <select id="lookbackWeeks">
+          <option value="4">4 Wochen</option>
+          <option value="8">8 Wochen</option>
+          <option value="12">12 Wochen (Standard)</option>
+          <option value="16">16 Wochen</option>
+          <option value="24">24 Wochen</option>
+          <option value="52">52 Wochen (1 Jahr)</option>
+        </select>
+      </div>
       <div class="field" style="max-width:280px">
           <label>Daten-Refresh-Intervall</label>
           <select id="refreshInterval">
@@ -902,6 +918,8 @@ async function loadConfig() {
 
     // Dashboard settings
     document.getElementById('dashboardTitle').value = config.dashboard?.title || '';
+    document.getElementById('dataStartDate').value = config.dashboard?.dataStartDate || '';
+    setSelectValue('lookbackWeeks', String(config.dashboard?.lookbackWeeks || 12));
     document.getElementById('adminPassword').value = config.dashboard?.adminPassword || '';
     setSelectValue('refreshInterval', String(config.dashboard?.refreshIntervalMinutes || 15));
     setSelectValue('backgroundRefreshInterval', String(config.dashboard?.backgroundRefreshMinutes || 0));
@@ -1482,6 +1500,8 @@ async function saveConfig(silent = false) {
       title: document.getElementById('dashboardTitle').value.trim() || 'Delivery Health Dashboard',
       adminPassword: document.getElementById('adminPassword').value || 'OKR3.2',
       iteration,
+      dataStartDate: document.getElementById('dataStartDate').value || null,
+      lookbackWeeks: parseInt(document.getElementById('lookbackWeeks').value) || 12,
       refreshIntervalMinutes: parseInt(document.getElementById('refreshInterval').value),
       backgroundRefreshMinutes: parseInt(document.getElementById('backgroundRefreshInterval').value) || 0
     },

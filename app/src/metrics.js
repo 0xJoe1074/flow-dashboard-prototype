@@ -1,6 +1,6 @@
 'use strict';
 
-const WEEKS = 12;
+const DEFAULT_WEEKS = 12;
 
 // ── Category matching ────────────────────────────────────────────────
 
@@ -122,6 +122,7 @@ function calculateTeamMetrics(issues, team, config) {
   const categories   = config.jira?.workItemCategories || [];
   const commitment   = config.jira?.commitment || null;
   const iteration    = config.dashboard?.iteration || 1;
+  const WEEKS        = config.dashboard?.lookbackWeeks || DEFAULT_WEEKS;
   const now = new Date();
 
   // ── Extract dates from changelog ───────────────────────────────────
@@ -164,18 +165,32 @@ function calculateTeamMetrics(issues, team, config) {
     };
   });
 
+  // ── Apply global dataStartDate filter ─────────────────────────────
+  const dataStartDate = config.dashboard?.dataStartDate
+    ? new Date(config.dashboard.dataStartDate)
+    : null;
+  const filteredItems = dataStartDate
+    ? items.filter(i => {
+        // Keep WIP items always (they are still ongoing)
+        if (i.isWip) return true;
+        // For closed items: closedAt must be >= dataStartDate
+        if (i.closedAt && i.closedAt < dataStartDate) return false;
+        return true;
+      })
+    : items;
+
   // ── Throughput & Arrival by week (last 12 weeks incl. current) ─────
   // ref = now so the last bucket is the ongoing (incomplete) week.
   // The frontend labels it clearly as "current".
-  const tp          = buildWeeklyBuckets(items, i => i.closedAt, now, WEEKS);
-  const arrivalRate = buildWeeklyBuckets(items, i => i.activatedAt, now, WEEKS);
+  const tp          = buildWeeklyBuckets(filteredItems, i => i.closedAt, now, WEEKS);
+  const arrivalRate = buildWeeklyBuckets(filteredItems, i => i.activatedAt, now, WEEKS);
 
   const validTp  = tp.filter(v => v >= 0);
   const avgTp    = validTp.length ? round1(validTp.reduce((s, v) => s + v, 0) / validTp.length) : 0;
   const totalDelivered = tp.reduce((s, v) => s + v, 0);
 
   // ── Cycle Time ─────────────────────────────────────────────────────
-  const closedItems = items.filter(i => i.activatedAt && i.closedAt);
+  const closedItems = filteredItems.filter(i => i.activatedAt && i.closedAt);
   const cycleTimes  = closedItems.map(
     i => (i.closedAt - i.activatedAt) / MS_PER_DAY + 1  // +1 per Vacanti (min 1 day)
   );
@@ -194,13 +209,13 @@ function calculateTeamMetrics(issues, team, config) {
   const p85recent = _p85rRaw !== null ? round1(_p85rRaw) : p85;
 
   // ── WIP ────────────────────────────────────────────────────────────
-  const wipItems  = items.filter(i => i.isWip);
+  const wipItems  = filteredItems.filter(i => i.isWip);
   const wipAges   = wipItems.map(i => (now - i.activatedAt) / MS_PER_DAY);
   const avgWipAge = wipAges.length ? round1(wipAges.reduce((s, v) => s + v, 0) / wipAges.length) : 0;
 
   // ── Flow Balance (last 4 weeks) ────────────────────────────────────
-  const activated4w = items.filter(i => i.activatedAt && i.activatedAt >= fourWeeksAgo).length;
-  const closed4w    = items.filter(i => i.closedAt    && i.closedAt    >= fourWeeksAgo).length;
+  const activated4w = filteredItems.filter(i => i.activatedAt && i.activatedAt >= fourWeeksAgo).length;
+  const closed4w    = filteredItems.filter(i => i.closedAt    && i.closedAt    >= fourWeeksAgo).length;
   const flowRatio   = closed4w > 0
     ? Math.round((activated4w / closed4w) * 100) / 100
     : (activated4w > 0 ? 9.99 : 1.00);
@@ -272,7 +287,7 @@ function calculateTeamMetrics(issues, team, config) {
     // Throughput stacked by category (last 12 weeks)
     const stackedTp = {};
     for (const cat of categories) {
-      stackedTp[cat.name] = buildWeeklyBuckets(items, i => i.closedAt, now, WEEKS,
+      stackedTp[cat.name] = buildWeeklyBuckets(filteredItems, i => i.closedAt, now, WEEKS,
         i => i.category === cat.name);
     }
 
@@ -288,7 +303,7 @@ function calculateTeamMetrics(issues, team, config) {
     const bugCategories = new Set(
       categories.filter(c => !c.isValueWork).map(c => c.name)
     );
-    const bugsActivated4w = items.filter(i =>
+    const bugsActivated4w = filteredItems.filter(i =>
       i.activatedAt && i.activatedAt >= fourWeeksAgo && bugCategories.has(i.category)
     ).length;
     const bugsClosed4w = closed4wItems.filter(i => bugCategories.has(i.category)).length;
