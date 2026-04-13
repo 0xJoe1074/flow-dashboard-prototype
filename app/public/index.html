@@ -82,7 +82,7 @@
   .nav-hint { text-align: center; padding: 10px; font-size: 12px; color: var(--gray-400); }
 
   /* Sparkline */
-  .sparkline-container { display: flex; align-items: center; gap: 8px; }
+  .sparkline-container { display: flex; align-items: center; gap: 10px; }
   canvas.sparkline { height: 32px; width: 120px; }
   .trend-badge { font-size: 13px; font-weight: 700; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   .trend-up   { background: var(--green-bg); color: var(--green); }
@@ -218,7 +218,7 @@
           </th>
           <th class="sortable" onclick="sortTable('flowRatio')">
             Flow Balance
-            <span class="info-btn">i<span class="tooltip">Ankunftsrate ÷ Abschlussrate (letzte 4W).\n\n1.0× = perfekt ausgeglichen.\n&lt; 1.1× = Grün (stabil)\n1.1–1.3× = Gelb (WIP steigt leicht)\n&gt; 1.3× = Rot (WIP wächst kritisch)\n\nBasis: Activated Date (Zufluss) vs.\nClosed Date (Abfluss).</span></span>
+            <span class="info-btn">i<span class="tooltip">Ankunftsrate ÷ Abschlussrate (letzte 4W).\n1.0 = Gleichgewicht (Little's Law).\n\n&lt; 0.5×: WIP schrumpft stark (Rot)\n0.5–0.75×: Leert sich (Gelb)\n0.75–1.25×: Ausgeglichen (Grün)\n1.25–1.5×: Steigt leicht (Gelb)\n&gt; 1.5×: WIP wächst (Rot)\n\nBasis: Activated Date (Zufluss) vs.\nClosed Date (Abfluss).</span></span>
           </th>
         </tr>
       </thead>
@@ -255,8 +255,8 @@
         <div class="kpi-value" id="tdP85">—</div>
         <div class="kpi-sub">85. Perzentil</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">WIP</div>
+      <div class="kpi-card" id="tdCard4">
+        <div class="kpi-label" id="tdCard4Label">WIP</div>
         <div class="kpi-value" id="tdWip">—</div>
         <div class="kpi-sub" id="tdWipSub">Items in Progress</div>
       </div>
@@ -270,18 +270,18 @@
         </div>
       </div>
       <div class="td-panel">
-        <h3>Cycle Time Scatterplot (90 Tage)</h3>
+        <h3 id="chartScatterTitle">Cycle Time Scatterplot (90 Tage)</h3>
         <div style="position:relative">
           <canvas id="chartScatter"></canvas>
           <div id="scatterTooltip"></div>
         </div>
       </div>
       <div class="td-panel">
-        <h3>Throughput &amp; Ankunftsrate (12 Wochen)</h3>
+        <h3 id="chartRunChartTitle">Throughput &amp; Ankunftsrate (12 Wochen)</h3>
         <canvas id="chartRunChart"></canvas>
       </div>
       <div class="td-panel">
-        <h3>Flow Balance — Zufluss vs. Abfluss</h3>
+        <h3 id="chartPanel4Title">Flow Balance — Zufluss vs. Abfluss</h3>
         <canvas id="chartFlowBalance"></canvas>
       </div>
     </div>
@@ -488,10 +488,88 @@ function renderKpis(teams) {
   const wipColor  = wipRatio < 0.9 ? 'var(--green)' : wipRatio < 1.3 ? 'var(--yellow)' : 'var(--red)';
 
   const avgFlow     = avg(valid.map(t => t.flowRatio || 1));
-  const flowColor   = avgFlow <= 1.1 ? 'var(--green)' : avgFlow <= 1.3 ? 'var(--yellow)' : 'var(--red)';
-  const flowLabel   = avgFlow <= 1.1 ? 'Ausgeglichen' : avgFlow <= 1.3 ? 'Steigt' : 'WIP wächst';
-  const critTeams   = valid.filter(t => (t.flowRatio || 1) > 1.3).length;
+  const { cls: _fc, label: flowLabel } = flowStatus(avgFlow);
+  const flowColorMap = { 'flow-green': 'var(--green)', 'flow-yellow': 'var(--yellow)', 'flow-red': 'var(--red)' };
+  const flowColor   = flowColorMap[_fc];
+  const critTeams   = valid.filter(t => { const r = t.flowRatio || 1; return r > 1.25 || r < 0.5; }).length;
 
+  const iter = window._dashIteration || 1;
+
+  // ── Iteration 3: completely different strip ────────────────────────
+  if (iter >= 3) {
+    const iter3valid = valid.filter(t => t.commitmentProgress);
+    const totalCommitted = iter3valid.reduce((s, t) => s + (t.commitmentProgress.committed || 0), 0);
+    const totalDone      = iter3valid.reduce((s, t) => s + (t.commitmentProgress.done     || 0), 0);
+    const portPct   = totalCommitted > 0 ? Math.round((totalDone / totalCommitted) * 100) : 0;
+    const onTrack   = iter3valid.filter(t => t.commitmentProgress.paceStatus === 'on-track').length;
+    const atRisk    = iter3valid.filter(t => t.commitmentProgress.paceStatus === 'at-risk').length;
+    const offTrack  = iter3valid.filter(t => t.commitmentProgress.paceStatus === 'off-track').length;
+    const portColor = offTrack > 0 ? 'var(--red)' : atRisk > 0 ? 'var(--yellow)' : 'var(--green)';
+
+    const iter2valid = valid.filter(t => t.capacityOnValueWork !== undefined);
+    const avgCapacity = iter2valid.length ? Math.round(iter2valid.reduce((s, t) => s + (t.capacityOnValueWork || 0), 0) / iter2valid.length) : 0;
+    const capColor    = avgCapacity >= 70 ? 'var(--green)' : avgCapacity >= 50 ? 'var(--yellow)' : 'var(--red)';
+
+    strip.innerHTML = `
+      <div class="kpi-card">
+        <div class="kpi-label">Q2 Delivery Progress <span class="info-btn">i<span class="tooltip">Fortschritt gegen Q2-Scope.\nScope = Items mit Tag Q2-2026-committed.\n\nProjektion = done ÷ Wochen elapsed × 13W.\nGrün ≥ 90%, Gelb ≥ 70%, Rot &lt; 70%.</span></span></div>
+        <div class="kpi-value" style="color:${portColor}">${portPct}%</div>
+        <div class="kpi-sub">${totalDone} / ${totalCommitted} &nbsp;·&nbsp; ✓ ${onTrack} · ⚠ ${atRisk} · ✗ ${offTrack}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Throughput Trend <span class="info-btn">i<span class="tooltip">Richtung des Portfolio-Throughputs.\n\nØ letzte 2W vs. Ø 12W-Baseline (je Team, dann aggregiert).\nGrün = steigend, Rot = fallend.</span></span></div>
+        <div class="kpi-value" style="color:${tpColor}">${tpSign}${tpDelta}%</div>
+        <div class="kpi-sub">letzte 2W vs. 12W Baseline</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Cycle Time Trend (P85) <span class="info-btn">i<span class="tooltip">Veränderung der P85-Durchlaufzeit.\n\nØ P85 letzte 2W vs. Ø P85 12W-Baseline.\nGrün = schneller (negativ), Rot = langsamer.</span></span></div>
+        <div class="kpi-value" style="color:${ctColor}">${ctSign}${ctDelta}d</div>
+        <div class="kpi-sub">letzte 2W vs. 12W Baseline</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Capacity on Value Work <span class="info-btn">i<span class="tooltip">Anteil des Throughputs der KEINE Bug-Fixes sind.\n\n(Gesamt-Items − Bug-Fixes) ÷ Gesamt-Items.\nGrün ≥ 70%, Gelb ≥ 50%, Rot &lt; 50%.</span></span></div>
+        <div class="kpi-value" style="color:${capColor}">${avgCapacity}%</div>
+        <div class="kpi-sub">Ø über ${valid.length} Teams (4W)</div>
+      </div>
+    `;
+    return;
+  }
+
+  // ── Iteration 2: 4 cards ──────────────────────────────────────────
+  if (iter >= 2) {
+    const iter2valid = valid.filter(t => t.capacityOnValueWork !== undefined);
+    const avgCapacity = iter2valid.length ? Math.round(iter2valid.reduce((s, t) => s + (t.capacityOnValueWork || 0), 0) / iter2valid.length) : 0;
+    const capColor    = avgCapacity >= 70 ? 'var(--green)' : avgCapacity >= 50 ? 'var(--yellow)' : 'var(--red)';
+    const bugPct      = 100 - avgCapacity;
+    const totalBugAll = iter2valid.reduce((s, t) => s + Math.round(((t.tp || []).reduce((a,b)=>a+b,0)) * (1 - (t.capacityOnValueWork||100)/100)), 0);
+    const totalAll    = iter2valid.reduce((s, t) => s + (t.tp || []).reduce((a,b)=>a+b,0), 0);
+
+    strip.innerHTML = `
+      <div class="kpi-card">
+        <div class="kpi-label">Throughput Trend <span class="info-btn">i<span class="tooltip">Richtung des Portfolio-Throughputs.\nGrün = steigend, Rot = fallend.</span></span></div>
+        <div class="kpi-value" style="color:${tpColor}">${tpSign}${tpDelta}%</div>
+        <div class="kpi-sub">Ø ${num(avgTp)} Items/W</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Cycle Time P85 <span class="info-btn">i<span class="tooltip">Median-Durchlaufzeit (Closed − Activated).\nTrend: letzte 2W vs. 12W-Baseline.</span></span></div>
+        <div class="kpi-value" style="color:${ctColor}">${ctSign}${ctDelta}d</div>
+        <div class="kpi-sub">Ø Baseline ${num(avgP85)}d</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Gesamt WIP <span class="info-btn">i<span class="tooltip">Summe aller aktiven Work Items.\nItems mit Activated Date aber ohne Closed Date.</span></span></div>
+        <div class="kpi-value" style="color:${wipColor}">${totalWip}</div>
+        <div class="kpi-sub">Ø Alter ${num(avgWipAge)}d · ${valid.length} Teams</div>
+      </div>
+      <div class="kpi-card" style="border-color:#ddd6fe;background:#faf5ff">
+        <div class="kpi-label" style="color:#7c3aed">Capacity on Value Work <span class="info-btn">i<span class="tooltip">Anteil des Throughputs der KEINE Bug-Fixes sind.\n\n(Gesamt-Items − Bug-Fixes) ÷ Gesamt-Items.\nGrün ≥ 75%, Gelb ≥ 60%, Rot &lt; 60%.\n\nNeu verfügbar durch Work Item Typ-Daten.</span></span></div>
+        <div class="kpi-value" style="color:${capColor}">${avgCapacity}%</div>
+        <div class="kpi-sub">${bugPct}% Bug-Fixes · ${totalBugAll} von ${totalAll} Items</div>
+      </div>
+    `;
+    return;
+  }
+
+  // ── Iteration 1: 4 base cards ──────────────────────────────────────
   strip.innerHTML = `
     <div class="kpi-card">
       <div class="kpi-label">Throughput Trend <span class="info-btn">i<span class="tooltip">Portfolio-Throughput-Trend.\nØ letzte 2W vs. Ø 12W-Baseline.\nBasis: Closed Date.</span></span></div>
@@ -509,55 +587,11 @@ function renderKpis(teams) {
       <div class="kpi-sub">Ø Alter ${num(avgWipAge)}d · ${valid.length} Teams</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-label">Flow Balance <span class="info-btn">i<span class="tooltip">Ankunftsrate ÷ Abschlussrate (letzte 4W).\n1.0 = ausgeglichen · &gt;1.3 = WIP wächst.</span></span></div>
+      <div class="kpi-label">Flow Balance <span class="info-btn">i<span class="tooltip">Ankunftsrate ÷ Abschlussrate (letzte 4W).\n1.0 = Gleichgewicht (Little's Law).\n\n&lt; 0.5×: WIP schrumpft stark (Rot)\n0.5–0.75×: Leert sich (Gelb)\n0.75–1.25×: Ausgeglichen (Grün)\n1.25–1.5×: Steigt leicht (Gelb)\n&gt; 1.5×: WIP wächst (Rot)</span></span></div>
       <div class="kpi-value" style="color:${flowColor}">${avgFlow.toFixed(2)}×</div>
       <div class="kpi-sub">${flowLabel} · ${critTeams} kritisch</div>
     </div>
   `;
-
-  // ── Iteration 2 KPIs ──────────────────────────────────────────────
-  if ((window._dashIteration || 1) >= 2) {
-    const iter2valid = valid.filter(t => t.capacityOnValueWork !== undefined);
-    if (iter2valid.length) {
-      const avgCapacity = Math.round(iter2valid.reduce((s, t) => s + (t.capacityOnValueWork || 0), 0) / iter2valid.length);
-      const capColor    = avgCapacity >= 70 ? 'var(--green)' : avgCapacity >= 50 ? 'var(--yellow)' : 'var(--red)';
-      const netBugs     = iter2valid.reduce((s, t) => s + (t.netBugFlow || 0), 0);
-      const bugColor    = netBugs <= 0 ? 'var(--green)' : netBugs <= 3 ? 'var(--yellow)' : 'var(--red)';
-      strip.innerHTML += `
-        <div class="kpi-card">
-          <div class="kpi-label">Capacity on Value Work</div>
-          <div class="kpi-value" style="color:${capColor}">${avgCapacity}%</div>
-          <div class="kpi-sub">Ø über ${iter2valid.length} Teams (4W)</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">Net Bug Flow <span class="info-btn">i<span class="tooltip">Neue Bugs − behobene Bugs (letzte 4W).\n≤ 0 = Qualität verbessert/stabil.\n&gt; 0 = Bug-Schulden wachsen.</span></span></div>
-          <div class="kpi-value" style="color:${bugColor}">${netBugs > 0 ? '+' : ''}${netBugs}</div>
-          <div class="kpi-sub">Portfolio · letzte 4 Wochen</div>
-        </div>
-      `;
-    }
-  }
-
-  // ── Iteration 3 KPIs ──────────────────────────────────────────────
-  if ((window._dashIteration || 1) >= 3) {
-    const iter3valid = valid.filter(t => t.commitmentProgress);
-    if (iter3valid.length) {
-      const totalCommitted = iter3valid.reduce((s, t) => s + (t.commitmentProgress.committed || 0), 0);
-      const totalDone      = iter3valid.reduce((s, t) => s + (t.commitmentProgress.done     || 0), 0);
-      const portPct        = totalCommitted > 0 ? Math.round((totalDone / totalCommitted) * 100) : 0;
-      const onTrack  = iter3valid.filter(t => t.commitmentProgress.paceStatus === 'on-track').length;
-      const atRisk   = iter3valid.filter(t => t.commitmentProgress.paceStatus === 'at-risk').length;
-      const offTrack = iter3valid.filter(t => t.commitmentProgress.paceStatus === 'off-track').length;
-      const portColor = offTrack > 0 ? 'var(--red)' : atRisk > 0 ? 'var(--yellow)' : 'var(--green)';
-      strip.innerHTML += `
-        <div class="kpi-card">
-          <div class="kpi-label">Q-Delivery Progress</div>
-          <div class="kpi-value" style="color:${portColor}">${portPct}%</div>
-          <div class="kpi-sub">${totalDone} / ${totalCommitted} &nbsp;·&nbsp; ✓ ${onTrack} · ⚠ ${atRisk} · ✗ ${offTrack}</div>
-        </div>
-      `;
-    }
-  }
 }
 
 // ── Cell renderers ─────────────────────────────────────────────────────
@@ -601,16 +635,29 @@ function wipCell(t) {
   </div>`;
 }
 
+// Flow Balance: bidirektional nach Little's Law
+// Ratio = Ankunftsrate ÷ Abschlussrate 1.0 = Gleichgewicht
+// < 0.5: WIP schrumpft stark  (Rot)
+// 0.5–0.75: Leert sich        (Gelb)
+// 0.75–1.25: Ausgeglichen     (Grün)
+// 1.25–1.5: Steigt leicht     (Gelb)
+// > 1.5: WIP wächst           (Rot)
+function flowStatus(r) {
+  if (r > 1.5)  return { cls: 'flow-red',    label: 'WIP wächst ⚠' };
+  if (r > 1.25) return { cls: 'flow-yellow', label: 'Steigt leicht' };
+  if (r >= 0.75)return { cls: 'flow-green',  label: 'Ausgeglichen' };
+  if (r >= 0.5) return { cls: 'flow-yellow', label: 'Leert sich' };
+  return              { cls: 'flow-red',    label: 'WIP schrumpft ⚠' };
+}
+
 function flowCell(t) {
   const r     = t.flowRatio ?? 1;
-  const cls   = r <= 1.1 ? 'flow-green' : r <= 1.3 ? 'flow-yellow' : 'flow-red';
-  const label = r <= 1.1 ? 'Ausgeglichen' : r <= 1.3 ? 'Steigt leicht' : 'WIP wächst ⚠';
+  const { cls, label } = flowStatus(r);
   const arr   = ((t.activated4w ?? 0) / 4).toFixed(1);
   const dep   = ((t.closed4w    ?? 0) / 4).toFixed(1);
   return `<div class="flow-cell">
     <div class="flow-ratio ${cls}">${r.toFixed(2)}×</div>
     <div class="flow-detail">
-      <div style="font-weight:600;font-size:12px;color:var(--gray-700)">${label}</div>
       <div style="font-size:11px;color:var(--gray-400)">↑ ${arr}/W ankommen</div>
       <div style="font-size:11px;color:var(--gray-400)">↓ ${dep}/W abgeschlossen</div>
     </div>
@@ -702,8 +749,51 @@ function openTeam(t) {
   document.getElementById('tdAvgTp').textContent = num(t.avgTp) + '/W';
   document.getElementById('tdP50').textContent   = num(t.p50) + 'd';
   document.getElementById('tdP85').textContent   = num(t.p85) + 'd';
-  document.getElementById('tdWip').textContent   = t.wipCount ?? 0;
-  document.getElementById('tdWipSub').textContent = `Ø Alter ${num(t.wipAvgAge)}d`;
+
+  // ── 4th KPI card: dynamic per iteration ───────────────────────────
+  const iter = window._dashIteration || 1;
+  const card4 = document.getElementById('tdCard4');
+  const card4Label = document.getElementById('tdCard4Label');
+  const card4Val   = document.getElementById('tdWip');
+  const card4Sub   = document.getElementById('tdWipSub');
+  if (iter >= 2) {
+    card4.style.borderColor = '#ddd6fe';
+    card4.style.background  = '#faf5ff';
+    card4Label.textContent  = 'Value Work';
+    card4Label.style.color  = '#7c3aed';
+    card4Val.textContent    = (t.capacityOnValueWork != null ? t.capacityOnValueWork + '%' : '—');
+    card4Val.style.color    = '#7c3aed';
+    card4Sub.textContent    = 'Anteil nicht-Bug Throughput';
+  } else if (iter >= 3) {
+    // iter3: Current WIP
+    card4.style.borderColor = '';
+    card4.style.background  = '';
+    card4Label.textContent  = 'Current WIP';
+    card4Label.style.color  = '';
+    card4Val.textContent    = t.wipCount ?? 0;
+    card4Val.style.color    = '';
+    card4Sub.textContent    = 'Items in Progress';
+  } else {
+    // iter1: Ø Ankunftsrate
+    card4.style.borderColor = '';
+    card4.style.background  = '';
+    card4Label.textContent  = 'Ø Ankunftsrate';
+    card4Label.style.color  = '';
+    card4Val.textContent    = num(t.avgArrivalRate || t.arrivalRate4w) + '/W';
+    card4Val.style.color    = '';
+    card4Sub.textContent    = 'Items aktiviert / Woche';
+  }
+
+  // ── Chart titles: dynamic per iteration ──────────────────────────
+  document.getElementById('chartScatterTitle').textContent =
+    iter >= 2 ? 'Cycle Time Scatterplot — nach Typ' : 'Cycle Time Scatterplot (90 Tage)';
+  document.getElementById('chartRunChartTitle').innerHTML =
+    iter >= 3 ? 'Throughput Run Chart (12 Wochen)'
+    : iter >= 2 ? 'Throughput nach Typ (12 Wochen)'
+    : 'Throughput &amp; Ankunftsrate (12 Wochen)';
+  document.getElementById('chartPanel4Title').textContent =
+    iter >= 2 ? 'Quality — Net Bug Flow (12 Wochen)' : 'Flow Balance — Zufluss vs. Abfluss';
+
   document.getElementById('teamOverlay').classList.add('active');
   document.body.style.overflow = 'hidden';
   requestAnimationFrame(() => {
