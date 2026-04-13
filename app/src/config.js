@@ -25,7 +25,8 @@ const DEFAULT_CONFIG = {
   dashboard: {
     iteration: 1,
     refreshIntervalMinutes: 15,
-    title: 'Delivery Health Dashboard'
+    title: 'Delivery Health Dashboard',
+    adminPassword: 'OKR3.2'
   },
   teams: []
 };

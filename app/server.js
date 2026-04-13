@@ -41,6 +41,18 @@ app.get('/api/status', (_req, res) => {
 });
 
 // ── Admin: Config ─────────────────────────────────────────────────────
+// Public endpoint to verify admin password (no auth required — password is client-side only gating)
+app.post('/api/admin/check-password', (req, res) => {
+  try {
+    const { password } = req.body || {};
+    const config = readConfig();
+    const expected = config.dashboard?.adminPassword || 'OKR3.2';
+    res.json({ ok: password === expected });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/admin/config', (_req, res) => {
   try {
     const config = readConfig();

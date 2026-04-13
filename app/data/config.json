@@ -36,6 +36,7 @@
   },
   "dashboard": {
     "title": "Delivery Health Dashboard",
+    "adminPassword": "OKR3.2",
     "iteration": 2,
     "refreshIntervalMinutes": 15
   },

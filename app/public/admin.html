@@ -131,6 +131,8 @@
   @keyframes slideIn { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
   /* Cache status bar */
+  .chip-avail { display: inline-flex; align-items: center; gap: 3px; background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; border-radius: 20px; padding: 2px 9px; font-size: 11px; font-weight: 600; }
+  .chip-miss  { display: inline-flex; align-items: center; gap: 3px; background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; border-radius: 20px; padding: 2px 9px; font-size: 11px; text-decoration: line-through; opacity: 0.7; }
   .cache-bar { background: var(--gray-50); border: 1px solid var(--gray-200); border-radius: 8px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
   .cache-bar-info { color: var(--gray-500); }
   .cache-bar-info strong { color: var(--gray-700); }
@@ -173,15 +175,29 @@
 </head>
 <body>
 
-<nav class="topnav">
-  <div class="topnav-left">
-    <span class="topnav-brand">INFONIQA</span>
-    <span class="topnav-sub">Delivery Health Dashboard · Admin</span>
+<nav class="topnav" style="background:#1e293b;padding:9px 32px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:0.5px">OKR 3.2 ·</span>
+    <span style="color:white;font-size:13px;font-weight:700">Admin</span>
   </div>
-  <div class="topnav-right">
-    <a href="/" target="_blank">↗ Dashboard öffnen</a>
+  <div style="display:flex;gap:10px;align-items:center">
+    <span id="adminCacheIndicator" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#94a3b8">
+      <span id="adminCacheDot" style="width:8px;height:8px;border-radius:50%;background:#64748b;display:inline-block"></span>
+      <span id="adminCacheLabel">Lade…</span>
+    </span>
+    <a href="/" style="color:#94a3b8;font-size:12px;text-decoration:none;padding:5px 14px;border-radius:6px;border:1px solid #334155;transition:all 0.15s" onmouseover="this.style.color='white';this.style.background='#334155'" onmouseout="this.style.color='#94a3b8';this.style.background=''">&#8592; Dashboard</a>
   </div>
 </nav>
+
+<!-- Data availability banner -->
+<div style="background:#fffbeb;border-bottom:2px solid #fcd34d;padding:9px 32px;font-size:12px;color:#92400e;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+  <strong style="color:#78350f;margin-right:4px">Verfügbare Daten:</strong>
+  <span class="chip-avail">✓ Activated Date</span>
+  <span class="chip-avail">✓ Closed Date</span>
+  <span id="adminBannerTypeChip" class="chip-miss">Work Item Types</span>
+  <span id="adminBannerCommitChip" class="chip-miss">Commit-Scope / Tags</span>
+  <span style="margin-left:auto;font-size:11px;color:#b45309" id="adminLastRefresh"></span>
+</div>
 
 <div class="layout">
 
@@ -218,8 +234,99 @@
     </div>
   </div>
 
-  <!-- ── Section 2: Work Item Kategorien ──────────────────────────── -->
+  <!-- ── Section 2: Dashboard-Iteration ──────────────────────────── -->
   <div class="card">
+    <div class="card-header">
+      <h2>⚙️ Dashboard-Einstellungen</h2>
+    </div>
+    <div class="card-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Dashboard-Titel</label>
+          <input type="text" id="dashboardTitle" placeholder="Delivery Health Dashboard">
+        </div>
+        <div class="field" style="max-width:220px">
+          <label>Admin-Passwort</label>
+          <input type="password" id="adminPassword" placeholder="OKR3.2" autocomplete="new-password">
+          <small>Schutzt den Admin-Bereich. Standard: OKR3.2</small>
+        </div>
+      </div>
+      <div class="field" style="max-width:280px">
+          <label>Daten-Refresh-Intervall</label>
+          <select id="refreshInterval">
+            <option value="15">15 Minuten (empfohlen)</option>
+            <option value="30">30 Minuten</option>
+            <option value="60">1 Stunde</option>
+            <option value="240">4 Stunden</option>
+          </select>
+      </div>
+      <div class="field">
+        <label>Dashboard-Iteration <span class="info-icon" data-tip="Bestimmt, welche Metriken und Konfigurationsabschnitte aktiv sind.&#10;&#10;Die passsenden Einstellungen erscheinen automatisch unterhalb.">i</span></label>
+        <div class="iter-options" id="iterOptions">
+          <label class="iter-option" id="iter1opt">
+            <input type="radio" name="iteration" value="1">
+            <div class="iter-option-content">
+              <div class="iter-option-title">Iteration 1 — Activated &amp; Closed Date</div>
+              <div class="iter-option-desc">Throughput, Cycle Time P50/P85, WIP, Flow Balance</div>
+              <div class="iter-option-reqs">
+                <span class="req-chip req-available">✓ Activated Date</span>
+                <span class="req-chip req-available">✓ Closed Date</span>
+              </div>
+            </div>
+          </label>
+          <label class="iter-option" id="iter2opt">
+            <input type="radio" name="iteration" value="2" id="iter2radio">
+            <div class="iter-option-content">
+              <div class="iter-option-title">Iteration 2 — + Work Item Types</div>
+              <div class="iter-option-desc">Zusätzlich: Capacity on Value Work, Bug-Mix, Type-Breakdown</div>
+              <div class="iter-option-reqs">
+                <span class="req-chip req-available">✓ Activated Date</span>
+                <span class="req-chip req-available">✓ Closed Date</span>
+                <span class="req-chip req-available" id="iter2TypeChip">✓ Work Item Type / Kategorien</span>
+              </div>
+              <div id="iter2LockHint" style="display:none;font-size:11px;color:var(--yellow);margin-top:4px">⚠ Work Item Kategorien oder Issue Types definieren um Iteration 2 zu aktivieren.</div>
+            </div>
+          </label>
+          <label class="iter-option" id="iter3opt">
+            <input type="radio" name="iteration" value="3" id="iter3radio" disabled>
+            <div class="iter-option-content">
+              <div class="iter-option-title">Iteration 3 — + Commitment Tracking</div>
+              <div class="iter-option-desc">Zusätzlich: Q-Delivery Progress, Scope Changes, Pace Projection</div>
+              <div class="iter-option-reqs">
+                <span class="req-chip req-available">✓ Activated Date</span>
+                <span class="req-chip req-available">✓ Closed Date</span>
+                <span class="req-chip req-available">✓ Work Item Type</span>
+                <span class="req-chip" id="iter3CommitChip">✗ Commit-Tags konfigurieren</span>
+              </div>
+              <div id="iter3LockHint" style="font-size:11px;color:var(--yellow);margin-top:4px">⚠ Commitment Tracking konfigurieren um Iteration 3 zu aktivieren.</div>
+            </div>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Section 3: Work Item Types (global) ──────────────────────── -->
+  <div class="card" id="cardWorkItemTypes" data-iter-min="2">
+    <div class="card-header">
+      <h2>📦 Work Item Types (global)</h2>
+    </div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--gray-500);line-height:1.6">
+        Welche Work Item Types sollen in den Flow-Metriken berücksichtigt werden?
+        Keine Auswahl = alle Types. Einzelne Teams können dies unten überschreiben.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-secondary btn-sm" id="loadIssueTypesBtn">Issue Types aus Jira laden</button>
+        <span id="issueTypeLoadResult" style="font-size:12px;color:var(--gray-400)"></span>
+      </div>
+      <div id="globalIssueTypeList" class="issue-type-list" style="display:none"></div>
+      <small style="color:var(--gray-400)">Keine Auswahl = alle Work Item Types werden berücksichtigt.</small>
+    </div>
+  </div>
+
+  <!-- ── Section 4: Work Item Kategorien ──────────────────────────── -->
+  <div class="card" id="cardWorkItemKategorien" data-iter-min="2">
     <div class="card-header">
       <h2>📊 Work Item Kategorien <span style="font-size:12px;font-weight:400;color:var(--gray-400)">(Iteration 2+)</span></h2>
     </div>
@@ -352,25 +459,6 @@ Leer lassen = gilt für alle Issue Types.">i</span></label>
         </div>
       </div>
       <small style="color:var(--gray-400)">Keine Kategorien = alle Work Items zählen gleich (Iteration 1).</small>
-    </div>
-  </div>
-
-  <!-- ── Section 3: Work Item Types (global) ──────────────────────── -->
-  <div class="card">
-    <div class="card-header">
-      <h2>📦 Work Item Types (global)</h2>
-    </div>
-    <div class="card-body">
-      <p style="font-size:13px;color:var(--gray-500);line-height:1.6">
-        Welche Work Item Types sollen in den Flow-Metriken berücksichtigt werden?
-        Keine Auswahl = alle Types. Einzelne Teams können dies unten überschreiben.
-      </p>
-      <div class="btn-row">
-        <button class="btn btn-secondary btn-sm" id="loadIssueTypesBtn">Issue Types aus Jira laden</button>
-        <span id="issueTypeLoadResult" style="font-size:12px;color:var(--gray-400)"></span>
-      </div>
-      <div id="globalIssueTypeList" class="issue-type-list" style="display:none"></div>
-      <small style="color:var(--gray-400)">Keine Auswahl = alle Work Item Types werden berücksichtigt.</small>
     </div>
   </div>
 
@@ -512,7 +600,7 @@ Leer lassen = gilt für alle Issue Types.">i</span></label>
   </div>
 
   <!-- ── Section 6: Commitment Tracking ───────────────────────────── -->
-  <div class="card">
+  <div class="card" id="cardCommitment" data-iter-min="3">
     <div class="card-header">
       <h2>🎯 Commitment Tracking <span style="font-size:12px;font-weight:400;color:var(--gray-400)">(Iteration 3)</span></h2>
     </div>
@@ -581,72 +669,6 @@ Leer lassen = gilt für alle Issue Types.">i</span></label>
           <button type="button" class="btn btn-secondary btn-sm" id="previewCommitBtn">Vorschau (Anzahl committed Items)</button>
           <span id="commitPreviewResult" style="font-size:12px;color:var(--gray-500)"></span>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Section 4: Dashboard-Einstellungen ─────────────────────── -->
-  <div class="card">
-    <div class="card-header">
-      <h2>⚙️ Dashboard-Einstellungen</h2>
-    </div>
-    <div class="card-body">
-      <div class="field">
-        <label>Dashboard-Titel</label>
-        <input type="text" id="dashboardTitle" placeholder="Delivery Health Dashboard">
-      </div>
-      <div class="field">
-        <label>Dashboard-Iteration</label>
-        <div class="iter-options" id="iterOptions">
-          <label class="iter-option" id="iter1opt">
-            <input type="radio" name="iteration" value="1">
-            <div class="iter-option-content">
-              <div class="iter-option-title">Iteration 1 — Activated &amp; Closed Date</div>
-              <div class="iter-option-desc">Throughput, Cycle Time P50/P85, WIP, Flow Balance</div>
-              <div class="iter-option-reqs">
-                <span class="req-chip req-available">✓ Activated Date</span>
-                <span class="req-chip req-available">✓ Closed Date</span>
-              </div>
-            </div>
-          </label>
-          <label class="iter-option" id="iter2opt">
-            <input type="radio" name="iteration" value="2" id="iter2radio">
-            <div class="iter-option-content">
-              <div class="iter-option-title">Iteration 2 — + Work Item Types</div>
-              <div class="iter-option-desc">Zusätzlich: Capacity on Value Work, Bug-Mix, Type-Breakdown</div>
-              <div class="iter-option-reqs">
-                <span class="req-chip req-available">✓ Activated Date</span>
-                <span class="req-chip req-available">✓ Closed Date</span>
-                <span class="req-chip req-available" id="iter2TypeChip">✓ Work Item Type / Kategorien</span>
-              </div>
-              <div id="iter2LockHint" style="display:none;font-size:11px;color:var(--yellow);margin-top:4px">⚠ Work Item Kategorien oder Issue Types definieren um Iteration 2 zu aktivieren.</div>
-            </div>
-          </label>
-          <label class="iter-option" id="iter3opt">
-            <input type="radio" name="iteration" value="3" id="iter3radio" disabled>
-            <div class="iter-option-content">
-              <div class="iter-option-title">Iteration 3 — + Commitment Tracking</div>
-              <div class="iter-option-desc">Zusätzlich: Q-Delivery Progress, Scope Changes, Pace Projection</div>
-              <div class="iter-option-reqs">
-                <span class="req-chip req-available">✓ Activated Date</span>
-                <span class="req-chip req-available">✓ Closed Date</span>
-                <span class="req-chip req-available">✓ Work Item Type</span>
-                <span class="req-chip" id="iter3CommitChip">✗ Commit-Tags konfigurieren</span>
-              </div>
-              <div id="iter3LockHint" style="font-size:11px;color:var(--yellow);margin-top:4px">⚠ Commitment Tracking konfigurieren um Iteration 3 zu aktivieren.</div>
-            </div>
-          </label>
-        </div>
-      </div>
-      <div class="field" style="max-width:280px">
-        <label>Daten-Refresh-Intervall</label>
-        <select id="refreshInterval">
-          <option value="15">15 Minuten (empfohlen)</option>
-          <option value="30">30 Minuten</option>
-          <option value="60">1 Stunde</option>
-          <option value="240">4 Stunden</option>
-        </select>
-        <small>Wie oft werden Daten automatisch aus Jira aktualisiert?</small>
       </div>
     </div>
   </div>
@@ -870,6 +892,7 @@ async function loadConfig() {
 
     // Dashboard settings
     document.getElementById('dashboardTitle').value = config.dashboard?.title || '';
+    document.getElementById('adminPassword').value = config.dashboard?.adminPassword || '';
     setSelectValue('refreshInterval', String(config.dashboard?.refreshIntervalMinutes || 15));
 
     // Iteration
@@ -902,6 +925,20 @@ async function loadConfig() {
     // Restore commitment configuration
     restoreCommitmentUI(config.jira?.commitment || null);
     updateIterationLocks();
+    applyIterationVisibility();
+    // Update admin data-banner chips
+    const typeChip   = document.getElementById('adminBannerTypeChip');
+    const commitChip = document.getElementById('adminBannerCommitChip');
+    const hasTypes = (config.jira?.defaultIssueTypes?.length > 0) || (config.jira?.workItemCategories?.length > 0);
+    const hasCommit = !!(config.jira?.commitment?.method);
+    if (typeChip) {
+      typeChip.className = hasTypes ? 'chip-avail' : 'chip-miss';
+      typeChip.textContent = hasTypes ? '✓ Work Item Types' : 'Work Item Types';
+    }
+    if (commitChip) {
+      commitChip.className = hasCommit ? 'chip-avail' : 'chip-miss';
+      commitChip.textContent = hasCommit ? '✓ Commit-Scope' : 'Commit-Scope / Tags';
+    }
   } catch (e) {
     showToast('Konfiguration konnte nicht geladen werden: ' + e.message, 'err');
   }
@@ -912,12 +949,21 @@ async function loadCacheStatus() {
     const res  = await fetch('/api/status');
     const data = await res.json();
     const info = document.getElementById('cacheInfo');
+    const dot  = document.getElementById('adminCacheDot');
+    const lbl  = document.getElementById('adminCacheLabel');
+    const lastRefresh = document.getElementById('adminLastRefresh');
     if (!data.cached) {
       info.innerHTML = '<span style="color:var(--gray-400)">Noch keine Daten gecacht — klicke „Jetzt aktualisieren".</span>';
+      if (dot) dot.style.background = '#64748b';
+      if (lbl) lbl.textContent = 'Kein Cache';
+      if (lastRefresh) lastRefresh.textContent = '';
     } else {
       const age = Math.round((Date.now() - new Date(data.cachedAt).getTime()) / 60000);
       const exp = data.expired ? ' <span style="color:#ef4444">(abgelaufen)</span>' : '';
       info.innerHTML = `<strong>Zuletzt aktualisiert:</strong> vor ${age} Min.${exp}`;
+      if (dot) dot.style.background = data.expired ? '#ef4444' : '#22c55e';
+      if (lbl) lbl.textContent = `vor ${age} Min.`;
+      if (lastRefresh) lastRefresh.textContent = `Zuletzt: ${new Date(data.cachedAt).toLocaleTimeString('de-AT', {hour:'2-digit',minute:'2-digit'})}`;
     }
   } catch {}
 }
@@ -1391,10 +1437,18 @@ document.getElementById('previewJqlBtn').addEventListener('click', async () => {
 });
 
 // ── Iteration selector ─────────────────────────────────────────────────
+function applyIterationVisibility() {
+  const iter = parseInt(document.querySelector('input[name="iteration"]:checked')?.value || 1);
+  document.querySelectorAll('[data-iter-min]').forEach(card => {
+    card.style.display = iter >= parseInt(card.dataset.iterMin) ? '' : 'none';
+  });
+}
+
 document.querySelectorAll('input[name="iteration"]').forEach(radio => {
   radio.addEventListener('change', () => {
     document.querySelectorAll('.iter-option').forEach(el => el.classList.remove('selected'));
     radio.closest('.iter-option').classList.add('selected');
+    applyIterationVisibility();
   });
 });
 
@@ -1415,6 +1469,7 @@ async function saveConfig(silent = false) {
     },
     dashboard: {
       title: document.getElementById('dashboardTitle').value.trim() || 'Delivery Health Dashboard',
+      adminPassword: document.getElementById('adminPassword').value || 'OKR3.2',
       iteration,
       refreshIntervalMinutes: parseInt(document.getElementById('refreshInterval').value)
     },
