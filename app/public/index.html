@@ -39,11 +39,12 @@
   .chip-miss  { display: inline-flex; align-items: center; gap: 3px; background: #f1f5f9; color: #94a3b8; border: 1px solid #e2e8f0; border-radius: 20px; padding: 2px 9px; font-size: 11px; text-decoration: line-through; opacity: 0.7; }
 
   /* Header */
-  .header { background: white; border-bottom: 1px solid var(--gray-200); padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
-  .header h1 { font-size: 20px; font-weight: 700; }
-  .header .subtitle { font-size: 13px; color: var(--gray-500); margin-top: 2px; }
+  .header { background: #1e293b; border-bottom: none; padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .infoniqa-logo { font-size: 15px; font-weight: 800; letter-spacing: 1.5px; color: #a78bfa; text-transform: uppercase; }
+  .header h1 { font-size: 18px; font-weight: 600; color: #f1f5f9; }
   .header-right { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  .badge { background: var(--blue-light); color: var(--blue); font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 12px; }
+  .badge { background: #334155; color: #94a3b8; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 12px; }
   .filter-group { display: flex; gap: 8px; }
   select { padding: 6px 12px; border: 1px solid var(--gray-300); border-radius: 6px; font-size: 13px; background: white; cursor: pointer; }
 
@@ -126,7 +127,7 @@
   .tooltip { display: none; position: fixed; background: #1e293b; color: white; font-size: 11px; font-weight: 400; line-height: 1.5; padding: 8px 12px; border-radius: 7px; white-space: pre-line; width: 240px; z-index: 9999; text-transform: none; letter-spacing: 0; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.25); }
 
   /* Cache indicator */
-  .cache-indicator { font-size: 11px; color: var(--gray-400); display: flex; align-items: center; gap: 4px; }
+  .cache-indicator { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 4px; }
   .cache-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
   .cache-dot.stale { background: var(--yellow); }
 
@@ -149,43 +150,24 @@
 </head>
 <body>
 
-<!-- Top bar -->
-<div class="iter-nav">
-  <div class="iter-nav-left">
-    <span class="nav-label">OKR 3.2 ·</span>
-    <span class="iter-badge iter-1" id="iterBadge">Iteration 1</span>
+<!-- Header -->
+<div class="header" id="mainHeader" style="display:none">
+  <div class="header-left">
+    <span class="infoniqa-logo">INFONIQA</span>
+    <h1 id="dashTitle">Delivery Health Dashboard</h1>
   </div>
-  <div class="iter-nav-right">
+  <div class="header-right">
     <span class="cache-indicator" id="cacheIndicator">
       <span class="cache-dot" id="cacheDot"></span>
       <span id="cacheLabel">Lade…</span>
     </span>
-    <a class="admin-link" href="#" id="adminNavBtn" onclick="openAdminGate(event)">⚙ Admin</a>
-  </div>
-</div>
-
-<!-- Data availability banner -->
-<div class="data-banner" id="dataBanner">
-  <strong>Verfügbare Daten:</strong>
-  <span class="chip-avail">✓ Activated Date</span>
-  <span class="chip-avail">✓ Closed Date</span>
-  <span class="chip-miss" id="bannerTypeChip">Work Item Types</span>
-  <span class="chip-miss" id="bannerCommitChip">Commit-Scope / Tags</span>
-</div>
-
-<!-- Header -->
-<div class="header" id="mainHeader" style="display:none">
-  <div>
-    <h1 id="dashTitle">Delivery Health Dashboard</h1>
-    <div class="subtitle" id="dashSubtitle">OKR 3.2 — Flow Metrics basierend auf Jira-Daten</div>
-  </div>
-  <div class="header-right">
     <div class="filter-group">
       <select id="buFilter" onchange="filterTable()">
         <option value="all">Alle Business Units</option>
       </select>
     </div>
     <span class="badge" id="teamCountBadge">— Teams</span>
+    <a class="admin-link" href="#" id="adminNavBtn" onclick="openAdminGate(event)">⚙ Admin</a>
   </div>
 </div>
 
@@ -383,19 +365,9 @@ function showState(state) {
 }
 
 // ── Iteration chrome ───────────────────────────────────────────────────
-function updateIterBadge(iter) {
-  const el = document.getElementById('iterBadge');
-  const labels = { 1: 'Iteration 1 — Activated & Closed', 2: 'Iteration 2 — + Work Item Types', 3: 'Iteration 3 — Full Data' };
-  el.textContent = labels[iter] || `Iteration ${iter}`;
-  el.className   = `iter-badge iter-${iter}`;
-}
+function updateIterBadge(iter) { /* iter-nav removed */ }
 
-function updateDataBanner(iter) {
-  const typeChip   = document.getElementById('bannerTypeChip');
-  const commitChip = document.getElementById('bannerCommitChip');
-  if (iter >= 2) { typeChip.classList.remove('chip-miss');   typeChip.classList.add('chip-avail');   typeChip.textContent   = '✓ Work Item Types'; }
-  if (iter >= 3) { commitChip.classList.remove('chip-miss'); commitChip.classList.add('chip-avail'); commitChip.textContent = '✓ Commit-Scope Tags'; }
-}
+function updateDataBanner(iter) { /* data-banner removed */ }
 
 function updateCacheIndicator(lastUpdated, fromCache) {
   const label = document.getElementById('cacheLabel');
