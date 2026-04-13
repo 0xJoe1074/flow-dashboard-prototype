@@ -179,15 +179,19 @@ function calculateTeamMetrics(issues, team, config) {
   const cycleTimes  = closedItems.map(
     i => (i.closedAt - i.activatedAt) / MS_PER_DAY + 1  // +1 per Vacanti (min 1 day)
   );
-  const p50 = round1(percentile(cycleTimes, 50));
-  const p85 = round1(percentile(cycleTimes, 85));
+  const _p50raw = percentile(cycleTimes, 50);
+  const _p85raw = percentile(cycleTimes, 85);
+  const p50 = _p50raw !== null ? round1(_p50raw) : null;
+  const p85 = _p85raw !== null ? round1(_p85raw) : null;
 
   // Recent cycle time: items closed in last 4 weeks
   const fourWeeksAgo = subtractDays(now, 28);
   const recentClosed = closedItems.filter(i => i.closedAt >= fourWeeksAgo);
   const recentCT = recentClosed.map(i => (i.closedAt - i.activatedAt) / MS_PER_DAY + 1);
-  const p50recent = recentCT.length >= 3 ? round1(percentile(recentCT, 50)) : p50;
-  const p85recent = recentCT.length >= 3 ? round1(percentile(recentCT, 85)) : p85;
+  const _p50rRaw = recentCT.length >= 3 ? percentile(recentCT, 50) : null;
+  const _p85rRaw = recentCT.length >= 3 ? percentile(recentCT, 85) : null;
+  const p50recent = _p50rRaw !== null ? round1(_p50rRaw) : p50;
+  const p85recent = _p85rRaw !== null ? round1(_p85rRaw) : p85;
 
   // ── WIP ────────────────────────────────────────────────────────────
   const wipItems  = items.filter(i => i.isWip);
@@ -397,7 +401,7 @@ function subtractDays(date, days) {
 }
 
 function percentile(arr, p) {
-  if (!arr || arr.length === 0) return 0;
+  if (!arr || arr.length === 0) return null;
   const sorted = [...arr].sort((a, b) => a - b);
   const idx    = (p / 100) * (sorted.length - 1);
   const lo     = Math.floor(idx);

@@ -292,6 +292,7 @@ app.post('/api/admin/refresh', async (_req, res) => {
     const config = readConfig();
     const fresh  = await buildDashboardData(config);
     setCache(fresh);
+    startBackgroundRefresh();
     res.json({ ok: true, teams: fresh.teams.length, lastUpdated: fresh.lastUpdated });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -340,6 +341,7 @@ async function buildDashboardData(config) {
     iteration: config.dashboard?.iteration || 1,
     dashboardTitle: config.dashboard?.title || 'Delivery Health Dashboard',
     refreshIntervalMinutes: config.dashboard?.refreshIntervalMinutes || 15,
+    backgroundRefreshMinutes: config.dashboard?.backgroundRefreshMinutes || 0,
     totalConfiguredTeams: teams.length,
     jiraBaseUrl: config.jira?.baseUrl || '',
     workItemCategories: config.jira?.workItemCategories || []
@@ -349,4 +351,32 @@ async function buildDashboardData(config) {
 app.listen(PORT, () => {
   console.log(`\n  Dashboard: http://localhost:${PORT}`);
   console.log(`  Admin:     http://localhost:${PORT}/admin\n`);
+  startBackgroundRefresh();
 });
+
+// ── Background Refresh ─────────────────────────────────────────────────
+let _bgTimer = null;
+
+function startBackgroundRefresh() {
+  if (_bgTimer) { clearInterval(_bgTimer); _bgTimer = null; }
+
+  const config = readConfig();
+  const intervalMin = config.dashboard?.backgroundRefreshMinutes;
+  if (!intervalMin || intervalMin <= 0) return; // disabled
+
+  const intervalMs = intervalMin * 60 * 1000;
+  console.log(`  Background-Refresh aktiv: alle ${intervalMin} Min.`);
+
+  _bgTimer = setInterval(async () => {
+    try {
+      const cfg   = readConfig();
+      if (!hasToken()) return;
+      console.log(`[${new Date().toISOString()}] Background-Refresh…`);
+      const fresh = await buildDashboardData(cfg);
+      setCache(fresh);
+      console.log(`[${new Date().toISOString()}] Background-Refresh abgeschlossen.`);
+    } catch (err) {
+      console.error('Background-Refresh Fehler:', err.message);
+    }
+  }, intervalMs);
+}

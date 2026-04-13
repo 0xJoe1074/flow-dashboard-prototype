@@ -260,6 +260,16 @@
             <option value="240">4 Stunden</option>
           </select>
       </div>
+      <div class="field" style="max-width:280px">
+          <label>Server-Hintergrund-Refresh <span class="info-icon" data-tip="Der Server aktualisiert die Daten automatisch im Hintergrund — unabhängig vom Browser.&#10;&#10;Empfehlung: 1× täglich (Nacht) damit das Dashboard morgens immer frisch ist.">i</span></label>
+          <select id="backgroundRefreshInterval">
+            <option value="0">Deaktiviert (nur bei Browser-Aufruf)</option>
+            <option value="480">2× täglich (alle 8h)</option>
+            <option value="720">1× täglich — Mittag (alle 12h)</option>
+            <option value="1440">1× täglich — Nacht (alle 24h)</option>
+          </select>
+          <small>Hält den Cache aktuell, auch wenn kein Browser-Tab offen ist.</small>
+      </div>
       <div class="field">
         <label>Dashboard-Iteration <span class="info-icon" data-tip="Bestimmt, welche Metriken und Konfigurationsabschnitte aktiv sind.&#10;&#10;Die passsenden Einstellungen erscheinen automatisch unterhalb.">i</span></label>
         <div class="iter-options" id="iterOptions">
@@ -894,6 +904,7 @@ async function loadConfig() {
     document.getElementById('dashboardTitle').value = config.dashboard?.title || '';
     document.getElementById('adminPassword').value = config.dashboard?.adminPassword || '';
     setSelectValue('refreshInterval', String(config.dashboard?.refreshIntervalMinutes || 15));
+    setSelectValue('backgroundRefreshInterval', String(config.dashboard?.backgroundRefreshMinutes || 0));
 
     // Iteration
     const iter = String(config.dashboard?.iteration || 1);
@@ -1471,7 +1482,8 @@ async function saveConfig(silent = false) {
       title: document.getElementById('dashboardTitle').value.trim() || 'Delivery Health Dashboard',
       adminPassword: document.getElementById('adminPassword').value || 'OKR3.2',
       iteration,
-      refreshIntervalMinutes: parseInt(document.getElementById('refreshInterval').value)
+      refreshIntervalMinutes: parseInt(document.getElementById('refreshInterval').value),
+      backgroundRefreshMinutes: parseInt(document.getElementById('backgroundRefreshInterval').value) || 0
     },
     teams
   };
