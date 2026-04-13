@@ -38,7 +38,10 @@
     "title": "Delivery Health Dashboard",
     "adminPassword": "OKR3.2",
     "iteration": 2,
-    "refreshIntervalMinutes": 15
+    "dataStartDate": "2026-04-13",
+    "lookbackWeeks": 12,
+    "refreshIntervalMinutes": 15,
+    "backgroundRefreshMinutes": 1440
   },
   "teams": [
     {
