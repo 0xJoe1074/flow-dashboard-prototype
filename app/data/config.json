@@ -67,6 +67,21 @@
       "jql": "project in (10117) AND (resolutiondate >= startOfMonth(-24) or resolution is empty)",
       "activeStatus": null,
       "doneStatus": null
+    },
+    {
+      "id": "ace82151-ed90-4e2d-bca7-4e417606ba21",
+      "name": "One Payroll DE - SCRUM",
+      "businessUnit": "",
+      "boards": [
+        {
+          "id": 70,
+          "name": "One Payroll DE - SCRUM",
+          "jql": "project = DEVPAYDE AND component not in (SP_Data)"
+        }
+      ],
+      "jql": "project = DEVPAYDE AND component not in (SP_Data)",
+      "activeStatus": null,
+      "doneStatus": null
     }
   ]
 }
