@@ -2,11 +2,11 @@
 const fs = require('fs');
 const path = require('path');
 
-// Local dev: data/config.json (gitignored). Docker image: data/config.default.json copied to data/config.json at build time.
-const CONFIG_PATH   = path.join(__dirname, '../data/config.json');
-const DEFAULT_SEED  = path.join(__dirname, '../data/config.default.json');
-const TOKEN_PATH    = path.join(__dirname, '../data/.token');
-const ENV_PATH      = path.join(__dirname, '../../.env');
+// Local dev: data/config.json (gitignored).
+// Docker image: data/config.default.json is copied to data/config.json at build time (Dockerfile).
+const CONFIG_PATH = path.join(__dirname, '../data/config.json');
+const TOKEN_PATH  = path.join(__dirname, '../data/.token');
+const ENV_PATH    = path.join(__dirname, '../../.env');
 
 // In-memory config cache — eliminates fs.readFileSync on every request.
 // Invalidated by writeConfig() whenever the admin updates settings.
@@ -44,17 +44,10 @@ function readConfig() {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
     config = JSON.parse(raw);
   } catch {
-    // Fall back to config.default.json (Docker baseline) then to built-in defaults
-    try {
-      const raw = fs.readFileSync(DEFAULT_SEED, 'utf-8');
-      config = JSON.parse(raw);
-    } catch {
-      config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-    }
+    config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
   }
   config.jira = config.jira || {};
-  // Environment variables always win — they are set in the Azure Pipeline and
-  // survive container restarts/redeployments without baking secrets into the image.
+  // Environment variables always win — set in Azure Pipeline, survive redeployments.
   if (process.env.JIRA_BASE_URL && process.env.JIRA_BASE_URL.trim()) {
     config.jira.baseUrl = process.env.JIRA_BASE_URL.trim().replace(/\/$/, '');
   }

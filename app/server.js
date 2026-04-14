@@ -111,6 +111,27 @@ app.get('/api/admin/config', (_req, res) => {
   }
 });
 
+// Export config as config.default.json — download this, commit to git, redeploy to persist settings.
+app.get('/api/admin/config/export', (_req, res) => {
+  try {
+    const config = readConfig();
+    // Strip env-var-managed connection fields so they don't get baked into the export
+    const exportConfig = JSON.parse(JSON.stringify(config));
+    if (isBaseUrlFromEnv()) delete exportConfig.jira?.baseUrl;
+    if (isEmailFromEnv())   delete exportConfig.jira?.email;
+    // Strip runtime-only flags
+    delete exportConfig.hasToken;
+    delete exportConfig.tokenFromEnv;
+    delete exportConfig.baseUrlFromEnv;
+    delete exportConfig.emailFromEnv;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="config.default.json"');
+    res.send(JSON.stringify(exportConfig, null, 2));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/admin/config', (req, res) => {
   try {
     const body = req.body;

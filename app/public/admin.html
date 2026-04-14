@@ -701,7 +701,12 @@ Leer lassen = gilt für alle Issue Types.">i</span></label>
   </div>
 
   <!-- ── Save all ─────────────────────────────────────────────────── -->
-  <div style="display:flex;justify-content:flex-end;padding:0 4px">
+  <div style="display:flex;justify-content:flex-end;gap:10px;padding:0 4px;align-items:center">
+    <a href="/api/admin/config/export" download="config.default.json"
+       class="btn btn-secondary" id="exportConfigBtn" style="padding:12px 20px;font-size:14px;text-decoration:none"
+       title="Config herunterladen und als app/data/config.default.json committen — wird beim nächsten Deployment eingespielt">
+      ⬇ Config exportieren
+    </a>
     <button class="btn btn-primary" id="saveAllBtn" style="padding:12px 32px;font-size:15px">
       💾 Alle Einstellungen speichern
     </button>
