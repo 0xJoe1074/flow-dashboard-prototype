@@ -1,53 +1,163 @@
 # Infoniqadashboard
 
-Delivery Health Dashboard – Jira-backed Flow Metrics für Infoniqa-Teams.  
-Visualisiert Durchsatz, Cycle Time, WIP und Flow Balance pro Team aus Jira Cloud.
+**Delivery Health Dashboard** – Flow Metrics (Throughput, Cycle Time, WIP) für Infoniqa-Teams aus Jira Cloud.
 
 ---
 
-## Lokale Entwicklung
+## ⚠️ Security Warning
 
-### Voraussetzungen
+**VPN-only access required!** This dashboard connects to `infoniqa.atlassian.net` Jira Cloud. Use only within Infoniqa VPN or approved network. Do not expose publicly without authentication.
 
-- Node.js ≥ 18
-- Zugang zu `infoniqa.atlassian.net` (VPN oder direkt)
-- Jira Personal Access Token (PAT) – erstellen unter: `id.atlassian.com → Security → API tokens`
+---
 
-### Setup
+## Tech Stack
+
+| Component | Version |
+|-----------|---------|
+| Node.js   | 22 (Alpine) |
+| Express   | 4.18+ |
+| Jira API  | Cloud (OAuth2 / PAT) |
+| Runtime   | Docker (Node 22-Alpine) |
+
+**Dependencies:** `compression`, `dotenv`, `express`
+
+---
+
+## Hosting & Setup
+
+**Go-to Person:** Joerg Schwinghammer
+
+### Prerequisites
+
+- Jira Cloud access (`infoniqa.atlassian.net`)
+- Jira Personal Access Token (PAT)
+  - Create: `id.atlassian.com → Security → API tokens`
+  - Email: use your Infoniqa email account
+
+### First-Time Setup
+
+1. **Get PAT**  
+   `id.atlassian.com → Security → API tokens → Create token`
+
+2. **Create `.env` file** (root directory)  
+   ```bash
+   cd app
+   npm install
+   cp .env.example ../.env
+   ```
+   
+3. **Edit `.env`** with Jira credentials:
+   ```
+   JIRA_API_TOKEN=<your PAT from step 1>
+   JIRA_EMAIL=<your.email@brz.eu>
+   PORT=3000
+   ```
+
+4. **Test connection**  
+   Start app → http://localhost:3000/admin → "Jira Connection" → "Test"
+
+---
+
+## Local Development
 
 ```bash
-# 1. Dependencies installieren
-cd app
-npm install
-
-# 2. Umgebungsvariablen setzen
-cp .env.example ../.env
-# ../.env bearbeiten:
-#   JIRA_API_TOKEN=<dein PAT>
-#   JIRA_EMAIL=vorname.nachname@brz.eu
-
-# 3. Server starten
-npm run dev
+cd app && npm install
+npm run dev                    # Watch mode, auto-reload
+npm start                      # Standard start
 ```
 
-Dashboard:  http://localhost:3000  
-Admin-UI:   http://localhost:3000/admin
+**Access:**
+- Dashboard: http://localhost:3000
+- Admin UI:  http://localhost:3000/admin
 
-### Token aktualisieren (lokal)
+### Updating Jira Token (Local)
 
-Option A – `.env` direkt bearbeiten:
+**Option A – Via `.env`** (requires server restart)
+```bash
+# Edit ../.env
+JIRA_API_TOKEN=<new PAT>
+# Restart npm run dev
 ```
-JIRA_API_TOKEN=<neuer PAT>
+
+**Option B – Via Admin UI** (no restart needed)  
+`http://localhost:3000/admin → Jira Connection → Token → Save`
+
+### Config Management
+
+All team configs (JQL, statuses, refresh interval) are managed via Admin UI (`/admin`) and stored in `app/data/config.json`.
+
+---
+
+## Deployment
+
+### Docker Build & Run
+
+```bash
+# Build
+docker build -t infoniqadashboard .
+
+# Run (with .env)
+docker run -p 3000:3000 --env-file .env infoniqadashboard
 ```
-Server muss danach neu gestartet werden.
 
-Option B – Admin-UI:  
-`http://localhost:3000/admin` → Jira Verbindung → Token eingeben → „Token speichern"  
-Der Token wird sofort aktiv (kein Neustart nötig) und in `../.env` persistiert.
+**Production Notes:**
+- Runs as non-root user (`nodeapp`)
+- Alpine base (small footprint)
+- Health check via `curl http://localhost:3000`
+- Requires `.env` at runtime for Jira PAT
 
-### Konfiguration (Teams, JQL, Statuses)
+---
 
-Alle Team-Konfigurationen werden über die Admin-UI unter `/admin` verwaltet und in `app/data/config.json` gespeichert.
+## Basic Features
+
+| Metric | Type | Per-Team | Notes |
+|--------|------|----------|-------|
+| **Throughput** | Flow | ✓ | Items completed / week (12-week trend) |
+| **Cycle Time** | Flow | ✓ | P50 / P85 (Closed − Activated) |
+| **WIP** | Flow | ✓ | Current in-progress count & aging |
+| **Flow Balance** | Flow | ✓ | Arrival rate ÷ Completion rate |
+| **Cycle Scatterplot** | Viz | ✓ | Last 90 days, by work item type |
+| **Work Mix** | Breakdown | ✓ | User Story / Tech Story / Bug % |
+| **Business Unit Filter** | Portfolio | — | Slice by team business unit |
+
+**Admin Features:**
+- Token & Jira connection test
+- JQL preview (validates team queries)
+- Status mapping editor
+- Custom field bindings
+- Cache refresh control
+
+---
+
+## Project Structure
+
+```
+OKR3.2/
+├── app/                      ← Express.js server & UI
+│   ├── server.js             ← Entry point
+│   ├── package.json          ← Dependencies
+│   ├── src/                  ← Business logic
+│   │   ├── jira.js           ← Jira API client
+│   │   ├── metrics.js        ← Flow metric calculations
+│   │   ├── config.js         ← Config I/O
+│   │   └── cache.js          ← Cache layer
+│   ├── public/               ← Dashboard HTML & static
+│   └── data/                 ← config.json, cache store
+├── Mockup/                   ← Static prototype mockups (reference)
+├── Dockerfile                ← Production image
+└── README.md                 ← This file
+```
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| **Token invalid** | Regenerate PAT at `id.atlassian.net` |
+| **Connection timeout** | Check VPN, verify Jira URL in config.json |
+| **Empty dashboard** | In Admin UI, verify JQL is correct & run "Preview JQL" |
+| **Port 3000 in use** | Set `PORT=3001` in `.env` |
 
 ---
 
