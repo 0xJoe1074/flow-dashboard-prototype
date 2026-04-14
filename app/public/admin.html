@@ -334,7 +334,7 @@
   </div>
 
   <!-- ── Section 3: Work Item Types (global) ──────────────────────── -->
-  <div class="card" id="cardWorkItemTypes" data-iter-min="2">
+  <div class="card" id="cardWorkItemTypes">
     <div class="card-header">
       <h2>📦 Work Item Types (global)</h2>
     </div>
@@ -353,7 +353,7 @@
   </div>
 
   <!-- ── Section 4: Work Item Kategorien ──────────────────────────── -->
-  <div class="card" id="cardWorkItemKategorien" data-iter-min="2">
+  <div class="card" id="cardWorkItemKategorien">
     <div class="card-header">
       <h2>📊 Work Item Kategorien <span style="font-size:12px;font-weight:400;color:var(--gray-400)">(Iteration 2+)</span></h2>
     </div>
@@ -1176,6 +1176,7 @@ function renderIssueTypeList(containerId, availableTypes, selectedTypes) {
     label.innerHTML = `<input type="checkbox" value="${escHtml(name)}" ${isChecked ? 'checked' : ''} style="display:none">${escHtml(name)}`;
     label.querySelector('input').addEventListener('change', e => {
       label.classList.toggle('checked', e.target.checked);
+      updateIterationLocks();
     });
     container.appendChild(label);
   });
@@ -1198,6 +1199,7 @@ document.getElementById('loadIssueTypesBtn').addEventListener('click', async () 
     const current = getSelectedIssueTypes('globalIssueTypeList');
     renderIssueTypeList('globalIssueTypeList', issueTypes, current);
     document.getElementById('globalIssueTypeList').style.display = 'flex';
+    updateIterationLocks();
     info.textContent = `${issueTypes.length} Types geladen.`;
   } catch (e) {
     info.textContent = 'Fehler: ' + e.message;
