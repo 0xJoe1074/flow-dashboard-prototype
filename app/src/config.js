@@ -66,7 +66,16 @@ function writeConfig(config) {
   if (isBaseUrlFromEnv()) delete toWrite.jira?.baseUrl;
   if (isEmailFromEnv())   delete toWrite.jira?.email;
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(toWrite, null, 2), 'utf-8');
-  _configCache = config; // keep in-memory cache in sync (with env-var values)
+
+  const cached = JSON.parse(JSON.stringify(config));
+  cached.jira = cached.jira || {};
+  if (process.env.JIRA_BASE_URL && process.env.JIRA_BASE_URL.trim()) {
+    cached.jira.baseUrl = process.env.JIRA_BASE_URL.trim().replace(/\/$/, '');
+  }
+  if (process.env.JIRA_EMAIL && process.env.JIRA_EMAIL.trim()) {
+    cached.jira.email = process.env.JIRA_EMAIL.trim();
+  }
+  _configCache = cached;
 }
 
 /** Priority: 1) JIRA_API_TOKEN env var (ACI / Azure App Setting), 2) .token file (local dev fallback) */
