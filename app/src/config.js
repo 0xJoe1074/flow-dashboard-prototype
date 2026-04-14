@@ -2,9 +2,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const CONFIG_PATH = path.join(__dirname, '../data/config.json');
-const TOKEN_PATH  = path.join(__dirname, '../data/.token');
-const ENV_PATH    = path.join(__dirname, '../../.env');
+// Local dev: data/config.json (gitignored). Docker image: data/config.default.json copied to data/config.json at build time.
+const CONFIG_PATH   = path.join(__dirname, '../data/config.json');
+const DEFAULT_SEED  = path.join(__dirname, '../data/config.default.json');
+const TOKEN_PATH    = path.join(__dirname, '../data/.token');
+const ENV_PATH      = path.join(__dirname, '../../.env');
 
 // In-memory config cache — eliminates fs.readFileSync on every request.
 // Invalidated by writeConfig() whenever the admin updates settings.
@@ -42,11 +44,21 @@ function readConfig() {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
     config = JSON.parse(raw);
   } catch {
-    config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    // Fall back to config.default.json (Docker baseline) then to built-in defaults
+    try {
+      const raw = fs.readFileSync(DEFAULT_SEED, 'utf-8');
+      config = JSON.parse(raw);
+    } catch {
+      config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    }
   }
-  // Priority: JIRA_EMAIL env var (Azure App Setting) overrides config.json
+  config.jira = config.jira || {};
+  // Environment variables always win — they are set in the Azure Pipeline and
+  // survive container restarts/redeployments without baking secrets into the image.
+  if (process.env.JIRA_BASE_URL && process.env.JIRA_BASE_URL.trim()) {
+    config.jira.baseUrl = process.env.JIRA_BASE_URL.trim().replace(/\/$/, '');
+  }
   if (process.env.JIRA_EMAIL && process.env.JIRA_EMAIL.trim()) {
-    config.jira = config.jira || {};
     config.jira.email = process.env.JIRA_EMAIL.trim();
   }
   _configCache = config;
@@ -56,8 +68,12 @@ function readConfig() {
 function writeConfig(config) {
   const dir = path.dirname(CONFIG_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
-  _configCache = config; // keep in-memory cache in sync
+  // Never persist connection fields that come from env vars — they belong in Azure settings, not on disk.
+  const toWrite = JSON.parse(JSON.stringify(config));
+  if (isBaseUrlFromEnv()) delete toWrite.jira?.baseUrl;
+  if (isEmailFromEnv())   delete toWrite.jira?.email;
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(toWrite, null, 2), 'utf-8');
+  _configCache = config; // keep in-memory cache in sync (with env-var values)
 }
 
 /** Priority: 1) JIRA_API_TOKEN env var (ACI / Azure App Setting), 2) .token file (local dev fallback) */
@@ -115,13 +131,19 @@ function hasToken() {
   return !!getJiraToken();
 }
 
-/**
- * Returns true only when the token is a read-only environment variable
- * (i.e. set via Azure App Setting in production, not via local .env).
- * Set JIRA_API_TOKEN_READONLY=true in ACI to activate the UI lock.
- */
+/** Returns true when JIRA_API_TOKEN is a read-only env var (production). */
 function isTokenFromEnv() {
   return process.env.JIRA_API_TOKEN_READONLY === 'true';
 }
 
-module.exports = { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv };
+/** Returns true when JIRA_BASE_URL is set as an env var (production). */
+function isBaseUrlFromEnv() {
+  return !!(process.env.JIRA_BASE_URL && process.env.JIRA_BASE_URL.trim());
+}
+
+/** Returns true when JIRA_EMAIL is set as an env var (production). */
+function isEmailFromEnv() {
+  return !!(process.env.JIRA_EMAIL && process.env.JIRA_EMAIL.trim());
+}
+
+module.exports = { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv, isBaseUrlFromEnv, isEmailFromEnv };

@@ -70,6 +70,7 @@
   .status-err { background: var(--red-bg); color: #dc2626; border: 1px solid var(--red-border); }
   .status-warn { background: var(--yellow-bg); color: #a16207; border: 1px solid var(--yellow-border); }
   .status-info { background: var(--blue-light); color: #1d4ed8; border: 1px solid #bfdbfe; }
+  .env-badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: var(--yellow-bg); color: #a16207; border: 1px solid var(--yellow-border); vertical-align: middle; cursor: default; }
 
   /* Team list */
   .team-list { display: flex; flex-direction: column; gap: 10px; }
@@ -906,6 +907,22 @@ async function loadConfig() {
     document.getElementById('jiraBaseUrl').value  = config.jira?.baseUrl || '';
     document.getElementById('jiraEmail').value    = config.jira?.email   || '';
 
+    if (config.baseUrlFromEnv) {
+      const el = document.getElementById('jiraBaseUrl');
+      el.disabled = true;
+      el.title = 'Wert kommt aus der Umgebungsvariable JIRA_BASE_URL (Azure Pipeline). Dort ändern.';
+      el.after(Object.assign(document.createElement('span'), {
+        className: 'env-badge', textContent: '🔒 Env-Var'
+      }));
+    }
+    if (config.emailFromEnv) {
+      const el = document.getElementById('jiraEmail');
+      el.disabled = true;
+      el.title = 'Wert kommt aus der Umgebungsvariable JIRA_EMAIL (Azure Pipeline). Dort ändern.';
+      el.after(Object.assign(document.createElement('span'), {
+        className: 'env-badge', textContent: '🔒 Env-Var'
+      }));
+    }
     if (config.tokenFromEnv) {
       document.getElementById('jiraToken').disabled = true;
       document.getElementById('saveTokenBtn').disabled = true;

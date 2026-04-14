@@ -17,9 +17,12 @@ COPY app/server.js ./
 COPY app/src/ ./src/
 COPY app/public/ ./public/
 
-# Runtime config scaffold – actual values come from environment variables
-# config.json is copied read-only; .token and cache are NOT included
-COPY app/data/config.json ./data/config.json
+# Seed config — copied as config.default.json (the baseline).
+# In production, /app/data is mounted as a persistent Azure File Share volume.
+# On first start, config.js falls back to config.default.json when config.json
+# doesn't yet exist on the volume. All subsequent Admin UI saves write config.json
+# to the volume, which survives redeployments.
+COPY app/data/config.default.json ./data/config.default.json
 
 # Non-root user
 RUN addgroup --system --gid 1001 nodejs \

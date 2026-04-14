@@ -6,7 +6,7 @@ const express     = require('express');
 const compression = require('compression');
 const crypto      = require('crypto');
 
-const { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv } = require('./src/config');
+const { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv, isBaseUrlFromEnv, isEmailFromEnv } = require('./src/config');
 const { testConnection, getStatuses, getIssueTypes, getStatusesForJql, getBoards, fetchTeamIssues, previewJql, getLabels, getCustomFields } = require('./src/jira');
 const { calculateTeamMetrics, buildCommitmentJql } = require('./src/metrics');
 const { getCache, getStaleCache, setCache, clearCache, getCacheStatus } = require('./src/cache');
@@ -105,7 +105,7 @@ app.post('/api/admin/check-password', (req, res) => {
 app.get('/api/admin/config', (_req, res) => {
   try {
     const config = readConfig();
-    res.json({ ...config, hasToken: hasToken(), tokenFromEnv: isTokenFromEnv() });
+    res.json({ ...config, hasToken: hasToken(), tokenFromEnv: isTokenFromEnv(), baseUrlFromEnv: isBaseUrlFromEnv(), emailFromEnv: isEmailFromEnv() });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
