@@ -2,86 +2,20 @@
   "jira": {
     "baseUrl": "",
     "email": "",
-    "defaultActiveStatus": "Selected for Development",
+    "defaultActiveStatus": "In Progress",
     "defaultDoneStatus": "Done",
-    "defaultIssueTypes": [
-      "Bug",
-      "Story"
-    ],
-    "workItemCategories": [
-      {
-        "name": "Story",
-        "color": "#3b82f6",
-        "isValueWork": true,
-        "filter": {
-          "method": "issueType",
-          "issueTypes": [
-            "Story"
-          ]
-        }
-      },
-      {
-        "name": "Bug",
-        "color": "#ef4444",
-        "isValueWork": false,
-        "filter": {
-          "method": "issueType",
-          "issueTypes": [
-            "Bug"
-          ]
-        }
-      }
-    ],
+    "defaultIssueTypes": [],
+    "workItemCategories": [],
     "commitment": null
   },
   "dashboard": {
     "title": "Delivery Health Dashboard",
     "adminPassword": "OKR3.2",
-    "iteration": 2,
-    "dataStartDate": "2026-01-01",
+    "iteration": 1,
+    "dataStartDate": null,
     "lookbackWeeks": 12,
     "refreshIntervalMinutes": 15,
-    "backgroundRefreshMinutes": 1440
+    "backgroundRefreshMinutes": 0
   },
-  "teams": [
-    {
-      "id": "44c39666-8108-46f4-afe0-64e9321a8a86",
-      "name": "Orbit",
-      "businessUnit": "Infoniqa Orbit",
-      "jql": "project = PI AND (component IN (\"Orbit UI\", \"Orbit Backend (Center Services)\", InfoniqaID) OR component = EMPTY)",
-      "activeStatus": "In Development",
-      "doneStatus": "DONE"
-    },
-    {
-      "id": "17533043-4205-490e-baba-15008bdd81de",
-      "name": "DEVHCM Dev Board",
-      "businessUnit": "DEV HCM",
-      "jql": "project = DEVHCM",
-      "activeStatus": null,
-      "doneStatus": null
-    },
-    {
-      "id": "13ef0c92-6ae7-4486-88fa-d0a6db945f71",
-      "name": "PERVIEW - DEV (Kanban)",
-      "businessUnit": "perview software development",
-      "jql": "project in (10117) AND (resolutiondate >= startOfMonth(-24) or resolution is empty)",
-      "activeStatus": null,
-      "doneStatus": null
-    },
-    {
-      "id": "ace82151-ed90-4e2d-bca7-4e417606ba21",
-      "name": "One Payroll DE - SCRUM",
-      "businessUnit": "",
-      "boards": [
-        {
-          "id": 70,
-          "name": "One Payroll DE - SCRUM",
-          "jql": "project = DEVPAYDE AND component not in (SP_Data)"
-        }
-      ],
-      "jql": "project = DEVPAYDE AND component not in (SP_Data)",
-      "activeStatus": null,
-      "doneStatus": null
-    }
-  ]
+  "teams": []
 }

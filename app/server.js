@@ -1,4 +1,5 @@
 'use strict';
+const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
@@ -172,20 +173,19 @@ app.post('/api/admin/config/import', (req, res) => {
       teams: teamsWithIds
     };
 
-    // Write to both config.json (runtime) and config.default.json (persistence across restarts)
+    // Write runtime config through the shared config module so in-memory state stays in sync.
+    writeConfig(configToSave);
+
+    // Also write config.default.json so the same settings can be re-imported after redeploys.
     const dir = path.dirname(CONFIG_PATH);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(configToSave, null, 2), 'utf-8');
-
-    // Also save as config.default.json for persistence (without env-var fields)
     const defaultPath = path.join(dir, 'config.default.json');
     const defaultConfig = JSON.parse(JSON.stringify(configToSave));
     if (isBaseUrlFromEnv()) delete defaultConfig.jira?.baseUrl;
     if (isEmailFromEnv())   delete defaultConfig.jira?.email;
     fs.writeFileSync(defaultPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
 
-    _configCache = configToSave;
     clearCache();
 
     res.json({ ok: true, message: `Konfiguration mit ${teamsWithIds.length} Team(s) importiert.` });
