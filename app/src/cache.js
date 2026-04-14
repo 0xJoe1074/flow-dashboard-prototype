@@ -18,8 +18,8 @@ function getCache() {
   return null;
 }
 
-function setCache(data) {
-  const entry = { data, cachedAt: new Date().toISOString() };
+function setCache(data, ttlMs) {
+  const entry = { data, cachedAt: new Date().toISOString(), ttlMs: ttlMs || (15 * 60 * 1000) };
   _mem = entry; // memory is the source of truth — disk write is best-effort
   const dir = path.dirname(CACHE_PATH);
   (async () => {
@@ -37,6 +37,12 @@ function clearCache() {
   try { fs.unlinkSync(CACHE_PATH); } catch { /* ignore */ }
 }
 
+/** Returns cached data regardless of TTL — used for stale-while-revalidate. */
+function getStaleCache() {
+  const entry = _mem || _readFile();
+  return entry ? entry.data : null;
+}
+
 function getCacheStatus() {
   const entry = _mem || _readFile();
   if (!entry) return { cached: false };
@@ -48,8 +54,8 @@ function getCacheStatus() {
 }
 
 function _isExpired(entry) {
-  const { readConfig } = require('./config');
-  const ttlMs = (readConfig().dashboard?.refreshIntervalMinutes || 15) * 60 * 1000;
+  // TTL is stored in the entry itself — no readConfig() call in the hot path (M4).
+  const ttlMs = entry.ttlMs || (15 * 60 * 1000);
   return (Date.now() - new Date(entry.cachedAt).getTime()) > ttlMs;
 }
 
@@ -61,4 +67,4 @@ function _readFile() {
   }
 }
 
-module.exports = { getCache, setCache, clearCache, getCacheStatus };
+module.exports = { getCache, getStaleCache, setCache, clearCache, getCacheStatus };

@@ -155,8 +155,10 @@ async function fetchTeamIssues(team, jiraConfig, token, customFieldIds = []) {
     jql += ` AND issuetype in (${quoted})`;
   }
   const extraFields = (customFieldIds || []).filter(Boolean);
-  const fields = ['summary', 'status', 'issuetype', 'created', 'updated',
-    'labels', 'fixVersions', 'parent', ...extraFields].join(',');
+  // Only fields actually consumed by calculateTeamMetrics — omitting summary/created/updated
+  // reduces Jira response payload (M2).
+  const fields = ['status', 'issuetype', 'labels', 'fixVersions', 'parent',
+    ...extraFields].join(',');
 
   let allIssues = [];
   // Support both legacy (total/startAt) and new (nextPageToken/isLast) pagination

@@ -64,23 +64,16 @@ function categoriseIssue(issue, categories) {
 /**
  * Returns true if the raw Jira issue is "committed" per the commitment config.
  */
-function isCommitted(issue, commitment) {
+// item has _labels (string[]), _parentKey (string), _fixVersions (string[]) — pre-lowercased
+function isCommitted(item, commitment) {
   if (!commitment) return false;
   switch (commitment.method) {
-    case 'label': {
-      const labels = (issue.fields?.labels || []).map(l => l.toLowerCase());
-      return !!(commitment.labelValue && labels.includes(commitment.labelValue.toLowerCase()));
-    }
-    case 'parentEpic': {
-      if (!commitment.epicKey) return false;
-      const parentKey = issue.fields?.parent?.key || '';
-      return parentKey.toLowerCase() === commitment.epicKey.toLowerCase();
-    }
-    case 'fixVersion': {
-      if (!commitment.fixVersionName) return false;
-      const versions = (issue.fields?.fixVersions || []).map(v => v.name?.toLowerCase());
-      return versions.includes(commitment.fixVersionName.toLowerCase());
-    }
+    case 'label':
+      return !!(commitment.labelValue && item._labels.includes(commitment.labelValue.toLowerCase()));
+    case 'parentEpic':
+      return !!(commitment.epicKey && item._parentKey === commitment.epicKey.toLowerCase());
+    case 'fixVersion':
+      return !!(commitment.fixVersionName && item._fixVersions.includes(commitment.fixVersionName.toLowerCase()));
     default:
       return false;
   }
@@ -157,8 +150,10 @@ function calculateTeamMetrics(issues, team, config) {
       type,
       // Category is derived once here so downstream logic is O(1) per item
       category: categoriseIssue(issue, categories),
-      // Raw issue reference kept for commitment matching (Iter 3)
-      _raw: issue,
+      // Only the fields isCommitted() needs — avoids keeping full Jira payloads in memory (M6)
+      _labels:      (issue.fields?.labels     || []).map(l => l.toLowerCase()),
+      _parentKey:   (issue.fields?.parent?.key || '').toLowerCase(),
+      _fixVersions: (issue.fields?.fixVersions || []).map(v => (v.name || '').toLowerCase()),
       activatedAt,
       closedAt,
       isWip
@@ -189,8 +184,24 @@ function calculateTeamMetrics(issues, team, config) {
   const avgTp    = validTp.length ? round1(validTp.reduce((s, v) => s + v, 0) / validTp.length) : 0;
   const totalDelivered = tp.reduce((s, v) => s + v, 0);
 
+  // ── Single-pass classification — replaces 5+ separate .filter() calls ──────
+  const fourWeeksAgo = subtractDays(now, 28);
+  const closedItems  = [];
+  const closed4wItems = []; // subset: closed in last 4 weeks (used for iter2 + recent CT)
+  const wipItems     = [];
+  let activated4w    = 0;
+  let closed4w       = 0;
+  for (const i of filteredItems) {
+    if (i.activatedAt && i.closedAt) {
+      closedItems.push(i);
+      if (i.closedAt >= fourWeeksAgo) closed4wItems.push(i);
+    }
+    if (i.isWip) wipItems.push(i);
+    if (i.activatedAt && i.activatedAt >= fourWeeksAgo) activated4w++;
+    if (i.closedAt    && i.closedAt    >= fourWeeksAgo) closed4w++;
+  }
+
   // ── Cycle Time ─────────────────────────────────────────────────────
-  const closedItems = filteredItems.filter(i => i.activatedAt && i.closedAt);
   const cycleTimes  = closedItems.map(
     i => (i.closedAt - i.activatedAt) / MS_PER_DAY + 1  // +1 per Vacanti (min 1 day)
   );
@@ -199,23 +210,19 @@ function calculateTeamMetrics(issues, team, config) {
   const p50 = _p50raw !== null ? round1(_p50raw) : null;
   const p85 = _p85raw !== null ? round1(_p85raw) : null;
 
-  // Recent cycle time: items closed in last 4 weeks
-  const fourWeeksAgo = subtractDays(now, 28);
-  const recentClosed = closedItems.filter(i => i.closedAt >= fourWeeksAgo);
-  const recentCT = recentClosed.map(i => (i.closedAt - i.activatedAt) / MS_PER_DAY + 1);
+  // Recent cycle time: items closed in last 4 weeks (reuses closed4wItems from pass above)
+  const recentCT = closed4wItems.map(i => (i.closedAt - i.activatedAt) / MS_PER_DAY + 1);
   const _p50rRaw = recentCT.length >= 3 ? percentile(recentCT, 50) : null;
   const _p85rRaw = recentCT.length >= 3 ? percentile(recentCT, 85) : null;
   const p50recent = _p50rRaw !== null ? round1(_p50rRaw) : p50;
   const p85recent = _p85rRaw !== null ? round1(_p85rRaw) : p85;
 
   // ── WIP ────────────────────────────────────────────────────────────
-  const wipItems  = filteredItems.filter(i => i.isWip);
   const wipAges   = wipItems.map(i => (now - i.activatedAt) / MS_PER_DAY);
   const avgWipAge = wipAges.length ? round1(wipAges.reduce((s, v) => s + v, 0) / wipAges.length) : 0;
 
   // ── Flow Balance (last 4 weeks) ────────────────────────────────────
-  const activated4w = filteredItems.filter(i => i.activatedAt && i.activatedAt >= fourWeeksAgo).length;
-  const closed4w    = filteredItems.filter(i => i.closedAt    && i.closedAt    >= fourWeeksAgo).length;
+  // (activated4w and closed4w already accumulated in classification pass)
   const flowRatio   = closed4w > 0
     ? Math.round((activated4w / closed4w) * 100) / 100
     : (activated4w > 0 ? 9.99 : 1.00);
@@ -256,7 +263,7 @@ function calculateTeamMetrics(issues, team, config) {
   // ── Iteration 2: Work Item Mix & Capacity Metrics ─────────────────
   let iter2 = null;
   if (iteration >= 2 && categories.length > 0) {
-    const closed4wItems = closedItems.filter(i => i.closedAt >= fourWeeksAgo);
+    // closed4wItems already computed in the classification pass above
     const wip4wItems    = wipItems;
 
     // Work item mix: per category — % of 4W throughput
@@ -318,7 +325,7 @@ function calculateTeamMetrics(issues, team, config) {
     const quarterStart = commitment.quarterStart ? new Date(commitment.quarterStart) : null;
     const quarterEnd   = commitment.quarterEnd   ? new Date(commitment.quarterEnd)   : null;
 
-    const committedItems = items.filter(i => isCommitted(i._raw, commitment));
+    const committedItems = items.filter(i => isCommitted(i, commitment));
     const committedDone  = committedItems.filter(i => i.closedAt != null);
 
     let paceStatus = 'unknown';
@@ -398,15 +405,18 @@ function startOfIsoWeek(date) {
 }
 
 function buildWeeklyBuckets(items, dateFn, ref, weeks, filterFn = null) {
-  const result = [];
-  for (let w = weeks - 1; w >= 0; w--) {
-    const start = subtractDays(ref, (w + 1) * 7);
-    const end   = subtractDays(ref, w * 7);
-    const count = items.filter(i => {
-      const d = dateFn(i);
-      return d && d >= start && d < end && (!filterFn || filterFn(i));
-    }).length;
-    result.push(count);
+  // O(N) single pass: compute bucket index arithmetically instead of re-scanning items per week.
+  const result = new Array(weeks).fill(0);
+  const refTime = ref.getTime();
+  const weekMs  = 7 * MS_PER_DAY;
+  const rangeMs = weeks * weekMs;
+  for (const item of items) {
+    if (filterFn && !filterFn(item)) continue;
+    const d = dateFn(item);
+    if (!d) continue;
+    const msAgo = refTime - d.getTime();
+    if (msAgo < 0 || msAgo >= rangeMs) continue;
+    result[weeks - 1 - Math.floor(msAgo / weekMs)]++;
   }
   return result;
 }

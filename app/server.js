@@ -9,14 +9,24 @@ const crypto      = require('crypto');
 const { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv } = require('./src/config');
 const { testConnection, getStatuses, getIssueTypes, getStatusesForJql, getBoards, fetchTeamIssues, previewJql, getLabels, getCustomFields } = require('./src/jira');
 const { calculateTeamMetrics, buildCommitmentJql } = require('./src/metrics');
-const { getCache, setCache, clearCache, getCacheStatus } = require('./src/cache');
+const { getCache, getStaleCache, setCache, clearCache, getCacheStatus } = require('./src/cache');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(compression());
+app.use(compression({ level: 6, threshold: 512 }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Helper: derive TTL from config (avoids repeating the same expression)
+function configTtlMs(cfg) {
+  return (cfg.dashboard?.refreshIntervalMinutes || 15) * 60 * 1000;
+}
+
+// Helper: build ETag from the lastUpdated timestamp stored in the data object.
+function makeEtag(data) {
+  return `"${Buffer.from(data.lastUpdated || '').toString('base64')}"`;
+}
 
 // In-flight build promise — prevents thundering herd when cache expires.
 // Concurrent /api/data requests coalesce onto the same build rather than
@@ -27,15 +37,43 @@ let _inflightBuild = null;
 app.get('/api/data', async (req, res) => {
   try {
     const config = readConfig();
-    const cached = getCache();
-    if (cached) return res.json({ ...cached, fromCache: true });
+    const ttlMs  = configTtlMs(config);
 
+    // 1) Fresh cache — fastest path
+    const cached = getCache();
+    if (cached) {
+      const etag = makeEtag(cached);
+      res.set('Cache-Control', 'private, no-cache');
+      res.set('ETag', etag);
+      if (req.headers['if-none-match'] === etag) return res.status(304).end();
+      return res.json({ ...cached, fromCache: true });
+    }
+
+    // 2) Stale-while-revalidate: return stale data immediately, rebuild in background (C1)
+    const stale = getStaleCache();
+    if (stale) {
+      if (!_inflightBuild) {
+        _inflightBuild = buildDashboardData(config)
+          .then(fresh => { setCache(fresh, ttlMs); return fresh; })
+          .finally(() => { _inflightBuild = null; });
+      }
+      const etag = makeEtag(stale);
+      res.set('Cache-Control', 'private, no-cache');
+      res.set('ETag', etag);
+      if (req.headers['if-none-match'] === etag) return res.status(304).end();
+      return res.json({ ...stale, fromCache: true, stale: true });
+    }
+
+    // 3) No cache at all — must wait for first build
     if (!_inflightBuild) {
       _inflightBuild = buildDashboardData(config)
+        .then(fresh => { setCache(fresh, ttlMs); return fresh; })
         .finally(() => { _inflightBuild = null; });
     }
     const fresh = await _inflightBuild;
-    setCache(fresh);
+    const etag = makeEtag(fresh);
+    res.set('Cache-Control', 'private, no-cache');
+    res.set('ETag', etag);
     res.json({ ...fresh, fromCache: false });
   } catch (err) {
     console.error('/api/data error:', err.message);
@@ -303,7 +341,7 @@ app.post('/api/admin/refresh', async (_req, res) => {
     _inflightBuild = null; // force a fresh build, discard any coalesced in-flight
     const config = readConfig();
     const fresh  = await buildDashboardData(config);
-    setCache(fresh);
+    setCache(fresh, configTtlMs(config));
     startBackgroundRefresh();
     res.json({ ok: true, teams: fresh.teams.length, lastUpdated: fresh.lastUpdated });
   } catch (err) {
@@ -405,7 +443,7 @@ function startBackgroundRefresh() {
       if (!hasToken()) return;
       console.log(`[${new Date().toISOString()}] Background-Refresh…`);
       const fresh = await buildDashboardData(cfg);
-      setCache(fresh);
+      setCache(fresh, configTtlMs(cfg));
       console.log(`[${new Date().toISOString()}] Background-Refresh abgeschlossen.`);
     } catch (err) {
       console.error('Background-Refresh Fehler:', err.message);
