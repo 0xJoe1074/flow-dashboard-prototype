@@ -780,6 +780,20 @@ let editingTeamId = null;
 let linkedBoards = []; // boards linked to the team currently being edited
 let categories = []; // workItemCategories
 
+// ── UUID helper (crypto.randomUUID requires Secure Context / HTTPS) ───
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback: use crypto.getRandomValues (available in all contexts)
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 1
+  const hex = [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
+
 // ── Board helpers ──────────────────────────────────────────────────────
 function getEffectiveJql() {
   if (!linkedBoards.length) return null;
@@ -1361,37 +1375,41 @@ document.getElementById('reloadTeamStatusesBtn').addEventListener('click', () =>
 });
 
 document.getElementById('saveTeamBtn').addEventListener('click', () => {
-  const name = document.getElementById('teamName').value.trim();
-  const bu   = document.getElementById('teamBU').value.trim();
-  const manual = document.getElementById('jqlManualOverride').checked;
-  // Determine final JQL: derived from boards (unless manually overridden) or manual textarea
-  const derivedJql = getEffectiveJql();
-  const jql = (derivedJql && !manual) ? derivedJql : document.getElementById('teamJQL').value.trim();
-  const activeStatus = document.getElementById('teamActiveStatus').value || null;
-  const doneStatus   = document.getElementById('teamDoneStatus').value   || null;
-  const useGlobalTypes = document.getElementById('teamUseGlobalTypes').checked;
-  const teamIssueTypes = useGlobalTypes ? null : [...new Set(getSelectedIssueTypes('teamIssueTypeList'))];
+  try {
+    const name = document.getElementById('teamName').value.trim();
+    const bu   = document.getElementById('teamBU').value.trim();
+    const manual = document.getElementById('jqlManualOverride').checked;
+    // Determine final JQL: derived from boards (unless manually overridden) or manual textarea
+    const derivedJql = getEffectiveJql();
+    const jql = (derivedJql && !manual) ? derivedJql : document.getElementById('teamJQL').value.trim();
+    const activeStatus = document.getElementById('teamActiveStatus').value || null;
+    const doneStatus   = document.getElementById('teamDoneStatus').value   || null;
+    const useGlobalTypes = document.getElementById('teamUseGlobalTypes').checked;
+    const teamIssueTypes = useGlobalTypes ? null : [...new Set(getSelectedIssueTypes('teamIssueTypeList'))];
 
-  if (!name) { showToast('Team-Name ist Pflichtfeld.', 'err'); return; }
-  if (!jql)  { showToast('JQL-Filter fehlt — entweder Board verknüpfen oder manuell eingeben.', 'err'); return; }
+    if (!name) { showToast('Team-Name ist Pflichtfeld.', 'err'); return; }
+    if (!jql)  { showToast('JQL-Filter fehlt — entweder Board verknüpfen oder manuell eingeben.', 'err'); return; }
 
-  const boards = linkedBoards.length ? [...linkedBoards] : undefined;
+    const boards = linkedBoards.length ? [...linkedBoards] : undefined;
 
-  if (editingTeamId) {
-    const idx = teams.findIndex(t => t.id === editingTeamId);
-    if (idx >= 0) teams[idx] = { ...teams[idx], name, businessUnit: bu, boards, jql, activeStatus, doneStatus, issueTypes: teamIssueTypes };
-  } else {
-    teams.push({ id: crypto.randomUUID(), name, businessUnit: bu, boards, jql, activeStatus, doneStatus, issueTypes: teamIssueTypes });
+    if (editingTeamId) {
+      const idx = teams.findIndex(t => t.id === editingTeamId);
+      if (idx >= 0) teams[idx] = { ...teams[idx], name, businessUnit: bu, boards, jql, activeStatus, doneStatus, issueTypes: teamIssueTypes };
+    } else {
+      teams.push({ id: generateUUID(), name, businessUnit: bu, boards, jql, activeStatus, doneStatus, issueTypes: teamIssueTypes });
+    }
+
+    renderTeams();
+    hideTeamForm();
+    // Auto-save to server immediately so changes are not lost
+    saveConfig(true).then(() => {
+      showToast(`Team "${name}" ${editingTeamId ? 'aktualisiert' : 'hinzugefügt'} und gespeichert.`, 'ok');
+    }).catch(e => {
+      showToast(`Team gespeichert (lokal), aber Server-Fehler: ${e.message}`, 'err');
+    });
+  } catch (e) {
+    showToast('Fehler beim Speichern: ' + e.message, 'err');
   }
-
-  renderTeams();
-  hideTeamForm();
-  // Auto-save to server immediately so changes are not lost
-  saveConfig(true).then(() => {
-    showToast(`Team "${name}" ${editingTeamId ? 'aktualisiert' : 'hinzugefügt'} und gespeichert.`, 'ok');
-  }).catch(e => {
-    showToast(`Team gespeichert (lokal), aber Server-Fehler: ${e.message}`, 'err');
-  });
 });
 
 function deleteTeam(id) {
@@ -1439,25 +1457,29 @@ document.getElementById('importBoardsBtn').addEventListener('click', async () =>
 });
 
 document.getElementById('importSelectedBtn').addEventListener('click', () => {
-  const checked = document.querySelectorAll('#boardModalBody input[type="checkbox"]:checked:not([disabled])');
-  if (!checked.length) { showToast('Kein Board ausgewählt.', 'err'); return; }
-  let added = 0;
-  checked.forEach(cb => {
-    const b = JSON.parse(cb.dataset.board);
-    teams.push({
-      id:           crypto.randomUUID(),
-      name:         b.name,
-      businessUnit: b.projectName || '',
-      boards:       [{ id: b.id, name: b.name, jql: b.jql }],
-      jql:          b.jql,
-      activeStatus: null,
-      doneStatus:   null
+  try {
+    const checked = document.querySelectorAll('#boardModalBody input[type="checkbox"]:checked:not([disabled])');
+    if (!checked.length) { showToast('Kein Board ausgewählt.', 'err'); return; }
+    let added = 0;
+    checked.forEach(cb => {
+      const b = JSON.parse(cb.dataset.board);
+      teams.push({
+        id:           generateUUID(),
+        name:         b.name,
+        businessUnit: b.projectName || '',
+        boards:       [{ id: b.id, name: b.name, jql: b.jql }],
+        jql:          b.jql,
+        activeStatus: null,
+        doneStatus:   null
+      });
+      added++;
     });
-    added++;
-  });
-  renderTeams();
-  closeBoardModal();
-  showToast(`${added} Team${added !== 1 ? 's' : ''} importiert — bitte noch "Alle Einstellungen speichern" klicken.`, 'ok');
+    renderTeams();
+    closeBoardModal();
+    showToast(`${added} Team${added !== 1 ? 's' : ''} importiert — bitte noch "Alle Einstellungen speichern" klicken.`, 'ok');
+  } catch (e) {
+    showToast('Fehler beim Importieren: ' + e.message, 'err');
+  }
 });
 
 function closeBoardModal() {
