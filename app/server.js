@@ -6,7 +6,7 @@ const express     = require('express');
 const compression = require('compression');
 const crypto      = require('crypto');
 
-const { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv, isBaseUrlFromEnv, isEmailFromEnv } = require('./src/config');
+const { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv, isBaseUrlFromEnv, isEmailFromEnv, CONFIG_PATH } = require('./src/config');
 const { testConnection, getStatuses, getIssueTypes, getStatusesForJql, getBoards, fetchTeamIssues, previewJql, getLabels, getCustomFields } = require('./src/jira');
 const { calculateTeamMetrics, buildCommitmentJql } = require('./src/metrics');
 const { getCache, getStaleCache, setCache, clearCache, getCacheStatus } = require('./src/cache');
@@ -127,6 +127,68 @@ app.get('/api/admin/config/export', (_req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename="config.default.json"');
     res.send(JSON.stringify(exportConfig, null, 2));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Import config from uploaded file — updates both config.json and config.default.json for persistence
+app.post('/api/admin/config/import', (req, res) => {
+  try {
+    const body = req.body;
+    if (!body || typeof body !== 'object') {
+      return res.status(400).json({ error: 'Ungültige Konfiguration.' });
+    }
+
+    // Validate structure
+    if (!body.jira || typeof body.jira !== 'object') {
+      return res.status(400).json({ error: 'jira-Sektion fehlt.' });
+    }
+    if (!body.dashboard || typeof body.dashboard !== 'object') {
+      return res.status(400).json({ error: 'dashboard-Sektion fehlt.' });
+    }
+    if (!Array.isArray(body.teams)) {
+      return res.status(400).json({ error: 'teams muss ein Array sein.' });
+    }
+
+    // Validate teams
+    for (const t of body.teams) {
+      if (!t.name || typeof t.name !== 'string' || !t.name.trim()) {
+        return res.status(400).json({ error: 'Jedes Team benötigt einen Namen.' });
+      }
+      if (!t.jql || typeof t.jql !== 'string' || !t.jql.trim()) {
+        return res.status(400).json({ error: `Team "${t.name}": JQL-Filter fehlt.` });
+      }
+    }
+
+    // Ensure all teams have IDs
+    const teamsWithIds = body.teams.map(t => ({
+      ...t,
+      id: t.id || crypto.randomUUID()
+    }));
+
+    const configToSave = {
+      ...body,
+      teams: teamsWithIds
+    };
+
+    // Write to both config.json (runtime) and config.default.json (persistence across restarts)
+    const dir = path.dirname(CONFIG_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(configToSave, null, 2), 'utf-8');
+
+    // Also save as config.default.json for persistence (without env-var fields)
+    const defaultPath = path.join(dir, 'config.default.json');
+    const defaultConfig = JSON.parse(JSON.stringify(configToSave));
+    if (isBaseUrlFromEnv()) delete defaultConfig.jira?.baseUrl;
+    if (isEmailFromEnv())   delete defaultConfig.jira?.email;
+    fs.writeFileSync(defaultPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
+
+    _configCache = configToSave;
+    clearCache();
+
+    res.json({ ok: true, message: `Konfiguration mit ${teamsWithIds.length} Team(s) importiert.` });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -139,4 +139,4 @@ function isEmailFromEnv() {
   return !!(process.env.JIRA_EMAIL && process.env.JIRA_EMAIL.trim());
 }
 
-module.exports = { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv, isBaseUrlFromEnv, isEmailFromEnv };
+module.exports = { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv, isBaseUrlFromEnv, isEmailFromEnv, CONFIG_PATH };

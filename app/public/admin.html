@@ -707,6 +707,11 @@ Leer lassen = gilt für alle Issue Types.">i</span></label>
        title="Config herunterladen und als app/data/config.default.json committen — wird beim nächsten Deployment eingespielt">
       ⬇ Config exportieren
     </a>
+    <input type="file" id="importConfigInput" accept=".json,application/json" style="display:none">
+    <button class="btn btn-secondary" id="importConfigBtn" style="padding:12px 20px;font-size:14px"
+            title="Config-JSON hochladen und als Standard speichern — beim nächsten Redeploy wird diese Config geladen">
+      ⬆ Config importieren
+    </button>
     <button class="btn btn-primary" id="saveAllBtn" style="padding:12px 32px;font-size:15px">
       💾 Alle Einstellungen speichern
     </button>
@@ -1571,6 +1576,86 @@ document.getElementById('saveAllBtn').addEventListener('click', async () => {
   }
   btn.disabled = false; btn.textContent = '💾 Alle Einstellungen speichern';
 });
+
+document.getElementById('exportConfigBtn').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('exportConfigBtn');
+  const originalText = btn.textContent;
+  const originalPointerEvents = btn.style.pointerEvents;
+  btn.style.pointerEvents = 'none';
+  btn.textContent = 'Exportiere…';
+
+  try {
+    const res = await fetch('/api/admin/config/export');
+    if (!res.ok) {
+      let message = 'Export fehlgeschlagen.';
+      try {
+        const data = await res.json();
+        if (data?.error) message = data.error;
+      } catch {
+        // Ignore parse errors and fall back to default message.
+      }
+      throw new Error(message);
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'config.default.json';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showToast('Config exportiert.', 'ok');
+  } catch (err) {
+    showToast('Fehler beim Export: ' + err.message, 'err');
+  }
+
+  btn.style.pointerEvents = originalPointerEvents;
+  btn.textContent = originalText;
+});
+
+// ── Import Config ──────────────────────────────────────────────────────
+document.getElementById('importConfigBtn').addEventListener('click', () => {
+  document.getElementById('importConfigInput').click();
+});
+
+document.getElementById('importConfigInput').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const btn = document.getElementById('importConfigBtn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Importiere…';
+
+  try {
+    const text = await file.text();
+    const config = JSON.parse(text);
+
+    const res = await fetch('/api/admin/config/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Import fehlgeschlagen.');
+
+    showToast(data.message || 'Config importiert — wird beim nächsten Redeploy aktiv.', 'ok');
+    
+    // Reload config to show imported data
+    await loadConfig();
+  } catch (err) {
+    showToast('Import-Fehler: ' + err.message, 'err');
+  }
+
+  btn.disabled = false;
+  btn.textContent = originalText;
+  document.getElementById('importConfigInput').value = '';
+});
+
 
 // ── Refresh Cache ──────────────────────────────────────────────────────
 document.getElementById('refreshCacheBtn').addEventListener('click', async () => {
