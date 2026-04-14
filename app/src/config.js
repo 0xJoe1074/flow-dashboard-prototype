@@ -6,6 +6,10 @@ const CONFIG_PATH = path.join(__dirname, '../data/config.json');
 const TOKEN_PATH  = path.join(__dirname, '../data/.token');
 const ENV_PATH    = path.join(__dirname, '../../.env');
 
+// In-memory config cache — eliminates fs.readFileSync on every request.
+// Invalidated by writeConfig() whenever the admin updates settings.
+let _configCache = null;
+
 const DEFAULT_CONFIG = {
   jira: {
     baseUrl: 'https://infoniqa.atlassian.net',
@@ -32,6 +36,7 @@ const DEFAULT_CONFIG = {
 };
 
 function readConfig() {
+  if (_configCache) return _configCache;
   let config;
   try {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
@@ -44,6 +49,7 @@ function readConfig() {
     config.jira = config.jira || {};
     config.jira.email = process.env.JIRA_EMAIL.trim();
   }
+  _configCache = config;
   return config;
 }
 
@@ -51,6 +57,7 @@ function writeConfig(config) {
   const dir = path.dirname(CONFIG_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+  _configCache = config; // keep in-memory cache in sync
 }
 
 /** Priority: 1) JIRA_API_TOKEN env var (ACI / Azure App Setting), 2) .token file (local dev fallback) */

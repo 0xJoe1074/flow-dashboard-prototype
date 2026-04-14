@@ -20,14 +20,16 @@ function getCache() {
 
 function setCache(data) {
   const entry = { data, cachedAt: new Date().toISOString() };
-  _mem = entry;
-  try {
-    const dir = path.dirname(CACHE_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(CACHE_PATH, JSON.stringify(entry), 'utf-8');
-  } catch (e) {
-    console.warn('Cache-Datei konnte nicht geschrieben werden:', e.message);
-  }
+  _mem = entry; // memory is the source of truth — disk write is best-effort
+  const dir = path.dirname(CACHE_PATH);
+  (async () => {
+    try {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      await fs.promises.writeFile(CACHE_PATH, JSON.stringify(entry), 'utf-8');
+    } catch (e) {
+      console.warn('Cache-Datei konnte nicht geschrieben werden:', e.message);
+    }
+  })();
 }
 
 function clearCache() {

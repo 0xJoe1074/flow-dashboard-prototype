@@ -2,8 +2,9 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-const express = require('express');
-const crypto  = require('crypto');
+const express     = require('express');
+const compression = require('compression');
+const crypto      = require('crypto');
 
 const { readConfig, writeConfig, getJiraToken, setLocalToken, hasToken, isTokenFromEnv } = require('./src/config');
 const { testConnection, getStatuses, getIssueTypes, getStatusesForJql, getBoards, fetchTeamIssues, previewJql, getLabels, getCustomFields } = require('./src/jira');
@@ -13,8 +14,14 @@ const { getCache, setCache, clearCache, getCacheStatus } = require('./src/cache'
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(compression());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// In-flight build promise — prevents thundering herd when cache expires.
+// Concurrent /api/data requests coalesce onto the same build rather than
+// each launching their own full Jira fetch.
+let _inflightBuild = null;
 
 // ── Dashboard data ────────────────────────────────────────────────────
 app.get('/api/data', async (req, res) => {
@@ -23,7 +30,11 @@ app.get('/api/data', async (req, res) => {
     const cached = getCache();
     if (cached) return res.json({ ...cached, fromCache: true });
 
-    const fresh = await buildDashboardData(config);
+    if (!_inflightBuild) {
+      _inflightBuild = buildDashboardData(config)
+        .finally(() => { _inflightBuild = null; });
+    }
+    const fresh = await _inflightBuild;
     setCache(fresh);
     res.json({ ...fresh, fromCache: false });
   } catch (err) {
@@ -289,6 +300,7 @@ app.post('/api/admin/jira/commitment-preview', async (req, res) => {
 app.post('/api/admin/refresh', async (_req, res) => {
   try {
     clearCache();
+    _inflightBuild = null; // force a fresh build, discard any coalesced in-flight
     const config = readConfig();
     const fresh  = await buildDashboardData(config);
     setCache(fresh);
@@ -303,6 +315,25 @@ app.post('/api/admin/refresh', async (_req, res) => {
 app.get('/admin', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
+// ── Concurrency limiter ────────────────────────────────────────────────
+// Runs `tasks` (array of async functions) with at most `limit` running in
+// parallel. Returns a results array in the same order as `tasks`.
+function limitConcurrency(tasks, limit) {
+  const results = new Array(tasks.length);
+  let idx = 0;
+  async function run() {
+    let i;
+    while ((i = idx++) < tasks.length) {
+      results[i] = await tasks[i]();
+    }
+  }
+  return Promise.all(
+    Array.from({ length: Math.min(limit, tasks.length) }, run)
+  ).then(() => results);
+}
+
+const JIRA_CONCURRENCY = 5; // max parallel Jira fetches (conservative for rate limits)
+
 // ── Build dashboard data ────────────────────────────────────────────────
 async function buildDashboardData(config) {
   const token = getJiraToken();
@@ -313,14 +344,14 @@ async function buildDashboardData(config) {
   }
 
   const teams   = config.teams || [];
-  const results = [];
 
   // Collect any custom field IDs referenced by workItemCategories
   const customFieldIds = (config.jira?.workItemCategories || [])
     .filter(c => c.filter?.method === 'customField' && c.filter?.customFieldId)
     .map(c => c.filter.customFieldId);
 
-  for (const team of teams) {
+  // Fetch all teams in parallel (up to JIRA_CONCURRENCY at a time)
+  const tasks = teams.map(team => async () => {
     try {
       const issues  = await fetchTeamIssues(team, config.jira, token, customFieldIds);
       const metrics = calculateTeamMetrics(issues, team, config);
@@ -328,12 +359,13 @@ async function buildDashboardData(config) {
       const effectiveTypes = team.issueTypes?.length
         ? team.issueTypes
         : (config.jira?.defaultIssueTypes?.length ? config.jira.defaultIssueTypes : null);
-      results.push({ id: team.id, name: team.name, bu: team.businessUnit || '', issueTypesConfig: effectiveTypes || [], ...metrics });
+      return { id: team.id, name: team.name, bu: team.businessUnit || '', issueTypesConfig: effectiveTypes || [], ...metrics };
     } catch (err) {
       console.error(`Team "${team.name}":`, err.message);
-      results.push({ id: team.id, name: team.name, bu: team.businessUnit || '', error: err.message });
+      return { id: team.id, name: team.name, bu: team.businessUnit || '', error: err.message };
     }
-  }
+  });
+  const results = await limitConcurrency(tasks, JIRA_CONCURRENCY);
 
   return {
     teams: results,

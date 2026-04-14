@@ -199,6 +199,20 @@ async function fetchTeamIssues(team, jiraConfig, token, customFieldIds = []) {
     if (batch.length === 0) break;
   }
 
+  // Strip non-status changelog entries to minimise memory usage.
+  // calculateTeamMetrics() only reads history items where field === 'status',
+  // so assignment-, priority-, label- and comment-changes are pure overhead.
+  for (const issue of allIssues) {
+    if (issue.changelog?.histories) {
+      issue.changelog.histories = issue.changelog.histories
+        .filter(h => h.items?.some(i => i.field === 'status'))
+        .map(h => ({
+          created: h.created,
+          items: h.items.filter(i => i.field === 'status')
+        }));
+    }
+  }
+
   return allIssues;
 }
 
